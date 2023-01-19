@@ -5,6 +5,12 @@
 /*
 Legislation: https://sso.agc.gov.sg/Act/PDPA2012?ProvIds=pr3-,pr4-,pr26-,pr26A-,pr26B-,pr26C-,pr26D-
 
+TO DO: Try the  Ray Reiter style of modelling as well! See Jackson Software Abstractions pg 197+
+
+Assumptions
+-----------
+
+
 
 Notes re modelling approach
 ---------------------------
@@ -103,29 +109,37 @@ abstract sig Notification {}
 one sig NotifyAffected, DoNotNotifyAffected, OrgNotifyPDPC extends Notification {}
 -- strictly speaking, NotifyAffected has two meanings here: for the PDPC, it means 'Org *must* notify affected', whereas for the org, it will be: Org has notified / is now notifying affected
 
+abstract sig Event {}
+one sig InitNotifiableDataBreach, Stutter, OrgBreaksLaw, AllIsGood extends Event {}
+
 sig State {
-    notifyStatus:  pfunc Actor -> Notification,
+    notifyStatus: pfunc Actor -> Notification,
     -- impt that this be pfunc and not func!
-    next: lone State
 }
 
-one sig Initial, OrgRecognizesNotifiableDataBreach, OrgViolatesLaw extends State {} 
+one sig Trace {
+    -- let initial state be: org recognizes notifiable data breach!
+    initial: one State,
+    next: pfunc State -> State
+}
+
+
+-- TO DO: do the auxiliary relatiosn thing from https://haslab.github.io/formal-software-design/modeling-tips/index.html#improved-visualisation-with-auxiliary-relations to make it clearer what's hpapening!
+-- OrgViolatesLaw
+--one sig Initial, OrgRecognizesNotifiableDataBreach extends State {} 
 -- assume the req to notify is NOT waived in virtue of the org taking action to "[render] it unlikely that the notifiable data breach will result in significant harm to the affected individual"
 
-pred init {
-    all actr: Actor | no Initial.notifyStatus[actr]
+pred init[st: State] {
+    all actr: Actor | no st.notifyStatus[actr]
     --- linearity of next is handled by the run statements
 }
 
-pred initialToNotifiableDB {
-    Initial.next = OrgRecognizesNotifiableDataBreach
+pred stutter[pre: State, post: State] {
 
-    -- frame condition:
-    OrgRecognizesNotifiableDataBreach.notifyStatus = Initial.notifyStatus
 }
 
-
 pred OrgRespondsToNDB {
+
 
 }
 
@@ -139,6 +153,8 @@ run {
     init 
     initialToNotifiableDB
     } for {next is linear}
+
+    
 
 
 
