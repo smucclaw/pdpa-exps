@@ -1,7 +1,7 @@
 
 #lang forge
 
-
+option verbose 2
 /*
 Legislation: https://sso.agc.gov.sg/Act/PDPA2012?ProvIds=pr3-,pr4-,pr26-,pr26A-,pr26B-,pr26C-,pr26D-
 
@@ -58,7 +58,7 @@ one sig PDPC, Org extends Actor {}
 --- One way: something like
 
 abstract sig WhetherToNotifyAffected {}
-one sig NotifyAffected, DoNotNotifyAffected extends WhetherToNotifyAffected {}
+one sig NotifyAffected, PDPCSaysDoNotNotifyAffected extends WhetherToNotifyAffected {}
 
 sig State {
     notifyStatus: func Actor -> WhetherToNotifyAffected,
@@ -79,7 +79,7 @@ sig TIME {
 */
 
 /*
-distingusih between (i) comapny delibereately notifying individual despite receiving prohibition
+Avishkar: distingusih between (i) comapny delibereately notifying individual despite receiving prohibition
 and (ii) company notifies idnviidual and then commission 
 
 
@@ -106,16 +106,25 @@ translating classes to Uppal difficult. So Alloy is useful target
 
 
 abstract sig Notification {}
-one sig NotifyAffected, DoNotNotifyAffected, OrgNotifyPDPC extends Notification {}
+one sig NotifyAffected, PDPCSaysDoNotNotifyAffected, PDPCNotifiedByOrg extends Notification {}
 -- strictly speaking, NotifyAffected has two meanings here: for the PDPC, it means 'Org *must* notify affected', whereas for the org, it will be: Org has notified / is now notifying affected
 
+/*
 abstract sig Event {}
 one sig InitNotifiableDataBreach, Stutter, OrgBreaksLaw, AllIsGood extends Event {}
 
+Not sure if shld use Event or State for this --- look more closely at the tutorial + try to get better sense for how visualizer would handle this!
+
+*/
+
+
 sig State {
-    notifyStatus: pfunc Actor -> Notification,
+    notifyStatus: pfunc Actor -> Notification
     -- impt that this be pfunc and not func!
 }
+
+one sig stNotifiableDataBreach, stDeadlineOrgResponseToNDB, stOrgBrokeLaw, stPDPCAndOrgAgree extends State {}
+--- TO DO: do we even need a AllIsWell/PDPCAndOrgAgree? Look at the oliver good enough paper again!
 
 one sig Trace {
     -- let initial state be: org recognizes notifiable data breach!
@@ -129,29 +138,159 @@ one sig Trace {
 --one sig Initial, OrgRecognizesNotifiableDataBreach extends State {} 
 -- assume the req to notify is NOT waived in virtue of the org taking action to "[render] it unlikely that the notifiable data breach will result in significant harm to the affected individual"
 
-pred init[st: State] {
-    all actr: Actor | no st.notifyStatus[actr]
+pred init[s: State] {
+    all actr: Actor | no s.notifyStatus[actr]
     --- linearity of next is handled by the run statements
+
+    s = stNotifiableDataBreach
+}
+
+/*
+TO DO
+Right now im thinking of handling terminal states via extensions of state sig
+*/
+pred finis[s: State] {
+    s = stPDPCAndOrgAgree or s = stOrgBrokeLaw
 }
 
 pred stutter[pre: State, post: State] {
+    finis[pre] or { not enabledCheckIfOrgRespBrokeLaw[pre] and not enabledCheckIfOrgRespBrokeLaw[pre] }
+
+    pre.notifyStatus = post.notifyStatus
+    pre = stOrgBrokeLaw <=> post = stOrgBrokeLaw
+    pre = stPDPCAndOrgAgree <=> post = stPDPCAndOrgAgree
+    pre = stDeadlineOrgResponseToNDB <=> post = stDeadlineOrgResponseToNDB
+    pre = stNotifiableDataBreach <=> post = stNotifiableDataBreach
 
 }
 
-pred OrgRespondsToNDB {
+/*
+26D.—(1)  Where an organisation assesses, in accordance with section 26C, that a data breach is a notifiable data breach, the organisation must notify the Commission as soon as is practicable, but in any case no later than 3 calendar days after the day the organisation makes that assessment
 
+(2)  Subject to subsections (5), (6) and (7), on or after notifying the Commission under subsection (1), the organisation must also notify each affected individual affected by a notifiable data breach mentioned in section 26B(1)(a) in any manner that is reasonable in the circumstances.
+*/
 
+-- helper pred
+pred OrgNotifiesAffectedOnOrAfterNotifyingPDPC[orgRespToNDBState: State] {
+    orgRespToNDBState.notifyStatus[PDPC] = PDPCNotifiedByOrg -- guard
+
+    // this is basically an exclusive or: Org either notifies affected at same time as notifying PDPC, or one state after
+    not { 
+        orgRespToNDBState.notifyStatus[Org] = NotifyAffected <=>
+        { some Trace.next[orgRespToNDBState] and { (Trace.next[orgRespToNDBState]).notifyStatus[Org] = NotifyAffected } } 
+    }
 }
 
-pred PDPCRespondsToOrg {
+-- initial to stDeadlineOrgResponseToNDB
+pred deadlineOrgResponseToNDB[pre: State] {
+    -- GUARDS
+    pre = Trace.initial // might be stronger than what we really want, but nice to keep it simple for now
+    PDPCSaysDoNotNotifyAffected not in pre.notifyStatus[PDPC]
+    // I'm imagining the edge case where PDPC somehow pre-emptively tells the org not to notify affected people about any possible issues arising from some likely but not yet confirmed notifiable data breach
 
+    -- ACTIONS
+    Trace.next[pre] = stDeadlineOrgResponseToNDB
+
+    // TO CHK: Might the first two be redundant tautologies?
+
+    -- A. What can Org do?
+    --- 1. Org either notifies PDPC by deadline, or does not 
+    // Simplifying assumption: PDPC does not learn about data breach via other means by the next state
+    stDeadlineOrgResponseToNDB.notifyStatus[PDPC] = PDPCNotifiedByOrg or { no stDeadlineOrgResponseToNDB.notifyStatus[PDPC] }
+    --- 2. Org either notifies affected on or after notifying PDPC, or does not notify affected individuals
+    not { OrgNotifiesAffectedOnOrAfterNotifyingPDPC[stDeadlineOrgResponseToNDB] <=> { no stDeadlineOrgResponseToNDB.notifyStatus[Org] } }
+
+    --- frame conditions
+}
+-- B. [TO DO] What are the consequences of Org's possible choices?
+--- ah but which pred should that be in?
+
+pred enabledCheckIfOrgRespBrokeLaw[pre: State] {
+    pre = stDeadlineOrgResponseToNDB
+}
+
+pred checkIfOrgRespBrokeLaw[pre: State, post: State] {
+    enabledCheckIfOrgRespBrokeLaw[pre]
+    
+    { PDPCNotifiedByOrg not in pre.notifyStatus[PDPC] or not OrgNotifiesAffectedOnOrAfterNotifyingPDPC[pre] } => post = stOrgBrokeLaw
+}
+
+pred enabledPDPCRespondsToOrg[pre: State] {
+    pre.notifyStatus[PDPC] = PDPCNotifiedByOrg    
+}
+
+pred PDPCRespondsToOrg[pre: State, post: State] {
+    enabledPDPCRespondsToOrg[pre]
+
+    post.notifyStatus[PDPC] = NotifyAffected or post.notifyStatus[PDPC] = PDPCSaysDoNotNotifyAffected   
 }
 
 
+pred PDPCAndOrgAgree[s: State] {
+    NotifyAffected in s.notifyStatus[PDPC] & s.notifyStatus[Org]
+    PDPCSaysDoNotNotifyAffected not in s.notifyStatus[PDPC]
+}
+
+/*
+More simplifying assumptions: Decisions by Org or PDPC re whether to notify affected will persist
+*/
+    // { some s: State | NotifyAffected in s.notifyStatus[Org] } => 
+pred OrgNotifyAffectedIsForever {
+    --- enforce that notification status persists in subsequent states of trace
+
+    // let stt = {st: State | NotifyAffected in st.notifyStatus[Org]} | 
+    //     // for all subsequent states / times, that notification status persists
+    //     { all s_after: State | s_after in stt.^next => NotifyAffected in s_after.notifyStatus[Org] } 
+}
+pred PDPCNotifyDecisionIsForever {
+    // { some s: State | NotifyAffected in s.notifyStatus[PDPC] } => 
+    //     { all s_after: State | s_after in s.^next => NotifyAffected in s_after.notifyStatus[PDPC] }
+
+    // { some s: State | PDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC] } => 
+    //     // for all subsequent states / times, that notification status persists
+    //     { all s_after: State | s_after in s.^next => PDPCSaysDoNotNotifyAffected in s_after.notifyStatus[PDPC] }
+}
+
+pred wellformed {
+    OrgNotifyAffectedIsForever
+    PDPCNotifyDecisionIsForever
+}
+
+
+pred traces {
+    /* 
+    At least two possible approaches here
+
+    1. Go through the states quasi-manually
+    2. Do it like the deadlock and elevator examples, where we have possible transition predicates and enabling conditions for them
+        -- Every transition is a valid move
+        all s: State | some Trace.next[s] implies {transition[s, Trace.next[s]] or stutter[s, Trace.next[s]]}
+
+    Let's try the quasi-manual approach first 
+    */
+    wellformed
+
+    init[Trace.initial]
+    no sprev: State | Trace.next[sprev] = Trace.initial
+
+    deadlineOrgResponseToNDB[Trace.initial]
+
+    all s: State - Trace.initial | {
+        some Trace.next[s] implies {
+            checkIfOrgRespBrokeLaw[s, Trace.next[s]] or
+            PDPCRespondsToOrg[s, Trace.next[s]] or
+            stutter[s, Trace.next[s]]
+            }
+    }
+}
+
+test expect {
+    wellformedVacuity: { wellformed } is sat
+    tracesVacuity: { traces } is sat
+}
 
 run { 
-    init 
-    initialToNotifiableDB
+     traces
     } for {next is linear}
 
     
@@ -192,7 +331,7 @@ Scratchpad
 
 
 /*abstract sig Event {}
-one sig Init, OrgRecognizesNotifiableDataBreach, OrgBrokeLaw extends Event {}
+one sig Init, OrgRecognizesNotifiableDataBreach, eOrgBrokeLaw extends Event {}
 -- ignoring *non* notifiable data breaches since those aren't interesting
  
 
