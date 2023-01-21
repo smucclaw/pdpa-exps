@@ -3,6 +3,18 @@
 
 option verbose 2
 /*
+TO DOs: 
+=======
+0. Fix / check OrgNotifyAffectedIsForever and PDPCNotifyDecisionIsForever (write some examples / property tests)
+1. Probably call State 'Time' instead of State
+2. Experiment with putting the `next` field in State/time instead of the one sig Trace
+3. Do the events / auxiliary relations thing from https://haslab.github.io/formal-software-design/modeling-tips/index.html#improved-visualisation-with-auxiliary-relations to make it clearer what transitions are taking place when!
+4. Add more tests of the specification
+5. Write up some tests of the system / properties + some run queries
+6. Docs: Write up some docs; Collate simplifying / modelling choices / assumptions somewhere 
+7. Do the temporal mode version
+
+----------------------------------------
 Legislation: https://sso.agc.gov.sg/Act/PDPA2012?ProvIds=pr3-,pr4-,pr26-,pr26A-,pr26B-,pr26C-,pr26D-
 
 TO DO: Try the  Ray Reiter style of modelling as well! See Jackson Software Abstractions pg 197+
@@ -238,17 +250,18 @@ More simplifying assumptions: Decisions by Org or PDPC re whether to notify affe
 pred OrgNotifyAffectedIsForever {
     --- enforce that notification status persists in subsequent states of trace
 
-    // let stt = {st: State | NotifyAffected in st.notifyStatus[Org]} | 
-    //     // for all subsequent states / times, that notification status persists
-    //     { all s_after: State | s_after in stt.^next => NotifyAffected in s_after.notifyStatus[Org] } 
+    let stt = {st: State | NotifyAffected in st.notifyStatus[Org]} | 
+        // for all subsequent states / times, that notification status persists
+        { all s_after: State | s_after in stt.^(Trace.next) => NotifyAffected in s_after.notifyStatus[Org] } 
 }
 pred PDPCNotifyDecisionIsForever {
-    // { some s: State | NotifyAffected in s.notifyStatus[PDPC] } => 
-    //     { all s_after: State | s_after in s.^next => NotifyAffected in s_after.notifyStatus[PDPC] }
+    let stt = {st: State | NotifyAffected in st.notifyStatus[PDPC]} | 
+        // for all subsequent states / times, that notification status persists
+        { all s_after: State | s_after in stt.^(Trace.next) => NotifyAffected in s_after.notifyStatus[PDPC] } 
 
-    // { some s: State | PDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC] } => 
-    //     // for all subsequent states / times, that notification status persists
-    //     { all s_after: State | s_after in s.^next => PDPCSaysDoNotNotifyAffected in s_after.notifyStatus[PDPC] }
+    let stt2 = {st: State | PDPCSaysDoNotNotifyAffected in st.notifyStatus[PDPC]} | 
+        // for all subsequent states / times, that notification status persists
+        { all s_after: State | s_after in stt2.^(Trace.next) => PDPCSaysDoNotNotifyAffected in s_after.notifyStatus[PDPC] } 
 }
 
 pred wellformed {
@@ -285,8 +298,11 @@ pred traces {
 }
 
 test expect {
+    --- tests of specification / model
     wellformedVacuity: { wellformed } is sat
     tracesVacuity: { traces } is sat
+
+    --- tests of the legislation / 'system'
 }
 
 run { 
