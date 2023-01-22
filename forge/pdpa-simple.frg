@@ -5,14 +5,30 @@ option verbose 2
 /*
 TO DOs: 
 =======
+
+-1. Think more about how to model obligation
+I think it *is* impt to be able to ask, not just whether it is __possible__ for org to notify affected before being told by PDPA not to do it, but also whether there is a scenario where the org is __required__ to notify the affected before subsequently being told that they must not notify.
+
+OK but how to talk about obligation? 
+
+Maybe:
+
+* the DSL will translate obligation-talk (obligations should be one of the key domain concepts) to constraints that check, at the relevant deadlines (which can be based on time or based on other trigger events), whether the obligation has been met, and that transit to sanctions otherwise
+* then when we need to check whether some actor is __obligated / required__ to do something by that deadline, we can just use something like: if the actor does not do that thing by that deadline, would the actor will be subsequently sanctioned (in this use case, will we move to the OrgBrokeLaw state)?
+* This would allow us to ask about obligations in our queries. And we'd be able to use the auxiliary relation trick to keep track in the visualizer of when specific obligations have been fulfilled or violated
+
+
+
+
 0. Fix / check OrgNotifyAffectedIsForever and PDPCNotifyDecisionIsForever (write some examples / property tests)
 1. Probably call State 'Time' instead of State
 2. Experiment with putting the `next` field in State/time instead of the one sig Trace
 3. Do the events / auxiliary relations thing from https://haslab.github.io/formal-software-design/modeling-tips/index.html#improved-visualisation-with-auxiliary-relations to make it clearer what transitions are taking place when!
-4. Add more tests of the specification
-5. Write up some tests of the system / properties + some run queries
-6. Docs: Write up some docs; Collate simplifying / modelling choices / assumptions somewhere 
-7. Do the temporal mode version
+4. Think more abt how i'm structuring the specification, esp. the traces stuff
+5. Add more tests of the specification
+6. Write up some tests of the system / properties + some run queries
+7. Docs: Write up some docs; Collate simplifying / modelling choices / assumptions somewhere 
+8. Do the temporal mode version
 
 ----------------------------------------
 Legislation: https://sso.agc.gov.sg/Act/PDPA2012?ProvIds=pr3-,pr4-,pr26-,pr26A-,pr26B-,pr26C-,pr26D-
