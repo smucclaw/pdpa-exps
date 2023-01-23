@@ -17,6 +17,23 @@ Maybe:
 * then when we need to check whether some actor is __obligated / required__ to do X by that deadline (i.e., whether X is an obligation), we can just use something like: is there a next state S' such that, if A does not do X by the deadline state, then A will be sanctioned in S' (in this use case, will move to OrgBrokeLaw state in S' / S' = OrgBrokeLaw)
 * This would allow us to ask about obligations in our queries. And we'd be able to use the auxiliary relation trick to keep track in the visualizer of when specific obligations have been fulfilled or violated
 
+Maybe the way to think about how to formulate the query:
+
+* the more general, fundamental principle here might be some sort of 'oughht implies can' principle: the requirements / legislation should be such that parties can feasibly comply with them. 
+    In particular --- and this would be an especially egregious violation of this principle --- we shouldn't have laws where you can end up breaking the law *even though the actions you took were ones that, in light of the info you had at the time, you might be reasonably expected to take in order to comply with the law*. (not saying the simpler 'had to take' b/c might quibble that the way to avoid possible race conditions is to ask the pdpc first before acting)
+
+* So the queries that the above thought would suggest is: 
+    [More general] Is it possible (is there a trace) where Org ends up breaking the law *even though Org's actions would have been permissible in light of the info Org had the time of said actions*?
+    [Special case of the above] Is it possible (is there a trace) where Org ends up breaking the law *even though Org's actions would not only have been permissible, but in fact be what might be reasonably taken to be required to comply with the law, in light of the info Org had the time of said actions*?
+
+These can be turned into properties in obvious ways, properties that can be checked for unsatisfiability.
+
+What I like about this way of framing things:
+    * feels like this does a better job of cutting the normative stuff here at its joints: that more general query seems like something we do want to ask about all legislation / contracts in general
+
+
+
+
 
 
 
