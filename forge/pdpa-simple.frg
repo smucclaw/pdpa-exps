@@ -14,7 +14,7 @@ OK but how to talk about obligation?
 Maybe:
 
 * the DSL will translate obligation-talk (obligations should be one of the key domain concepts) to constraints that check, at the relevant deadlines (which can be based on time or based on other trigger events), whether the obligation has been met, and that transit to sanctions otherwise
-* then when we need to check whether some actor is __obligated / required__ to do something by that deadline, we can just use something like: if the actor does not do that thing by that deadline, would the actor will be subsequently sanctioned (in this use case, will we move to the OrgBrokeLaw state)?
+* then when we need to check whether some actor is __obligated / required__ to do X by that deadline (i.e., whether X is an obligation), we can just use something like: is there a next state S' such that, if A does not do X by the deadline state, then A will be sanctioned in S' (in this use case, will move to OrgBrokeLaw state in S' / S' = OrgBrokeLaw)
 * This would allow us to ask about obligations in our queries. And we'd be able to use the auxiliary relation trick to keep track in the visualizer of when specific obligations have been fulfilled or violated
 
 
