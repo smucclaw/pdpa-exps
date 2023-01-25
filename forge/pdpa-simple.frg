@@ -23,7 +23,7 @@ Maybe the way to think about how to formulate the query:
     In particular --- and this would be an especially egregious violation of this principle --- we shouldn't have laws where you can end up breaking the law *even though the actions you took were ones that, in light of the info you had at the time, you might be reasonably expected to take in order to comply with the law*. (not saying the simpler 'had to take' b/c might quibble that the way to avoid possible race conditions is to ask the pdpc first before acting)
 
 * So the queries that the above thought would suggest is: 
-    [More general] Is it possible (is there a trace) where Org ends up breaking the law *even though Org's actions would have been permissible in light of the info Org had the time of said actions*?
+    [More general] Is it possible (is there a trace) where Org ends up breaking the law *even though Org's actions would have been permissible in light of the info Org had the time of said actions (i.e., Org's acitons in those states would not have triggered a transition to a sanction in the state where we check tt the operative obligations have been met)*?
     [Special case of the above] Is it possible (is there a trace) where Org ends up breaking the law *even though Org's actions would not only have been permissible, but in fact be what might be reasonably taken to be required to comply with the law, in light of the info Org had the time of said actions*?
 
 These can be turned into properties in obvious ways, properties that can be checked for unsatisfiability.
@@ -31,7 +31,10 @@ These can be turned into properties in obvious ways, properties that can be chec
 What I like about this way of framing things:
     * feels like this does a better job of cutting the normative stuff here at its joints: that more general query seems like something we do want to ask about all legislation / contracts in general
 
+----
 
+Another related thought: maybe it is better to say something like 'declare start of obligation' + 'checkIfObligationFulfilled[state after post]` in the transition predicate for the state where the obligation can be performed, so as to be able to model obligations that extend over a particular temporal duration.
+Look at how Symboleo does this!!!
 
 
 
@@ -159,23 +162,59 @@ abstract sig Event {}
 one sig InitNotifiableDataBreach, Stutter, OrgBreaksLaw, AllIsGood extends Event {}
 
 Not sure if shld use Event or State for this --- look more closely at the tutorial + try to get better sense for how visualizer would handle this!
-
 */
-
 
 sig State {
     notifyStatus: pfunc Actor -> Notification
     -- impt that this be pfunc and not func!
+
+    next: lone State
+    /* TO DO another time
+    activeObligs: set Obligation,
+    violatedObligs: set Obligation // obligs violated so far
+    */
 }
 
-one sig stNotifiableDataBreach, stDeadlineOrgResponseToNDB, stOrgBrokeLaw, stPDPCAndOrgAgree extends State {}
+one sig stInitial, stNotifiableDataBreach, stDeadlineOrgNotifyPDPCAbtNDB, stOrgBrokeLaw, stAllDone extends State {}
 --- TO DO: do we even need a AllIsWell/PDPCAndOrgAgree? Look at the oliver good enough paper again!
 
-one sig Trace {
-    -- let initial state be: org recognizes notifiable data breach!
-    initial: one State,
-    next: pfunc State -> State
+
+// abstract sig Event {}
+// one sig evObligStart, evObligCheck extends Event {}
+-- ignoring *non* notifiable data breaches since those aren't interesting
+
+/*
+would it make sense to use sigs for obligations too?
+*/
+
+abstract sig Obligation {
+    actr: one Actor, 
+    // can be set thereof in more complicated models
+    // duration: set State, 
+    // states where the obligation is active (and where the actor can take the relevant actio nor not),
+    // maybe better to put this info in State sig?
+
+    // add check_state and start_of_oblig?
+
+    happy_posts: set State,
+    penalty_posts: set State
+    // where these are *immediate* post states 
+    // from the possible happy and penalty post states, it should be possible to recover the __action(s)__ that the actor must take?
 }
+
+one sig oblOrgToNotifyPDPC, oblOrgToNotifyAffected extends Obligation {}
+lone sig oblPDPCImposesGagOrder extends Obligation {}
+
+------------------------ UTILITY FUNCS ---------------------------------------------------
+-- states that r bet s1 and s2, not inclusive
+fun between[s1: State, s2: State]: set State {
+    s1.^(Lasso.nextState) & s2.^(~(Lasso.nextState))
+}
+
+fun betweenInclLeft[s1: State, s2: State]: set State {
+    ( s1.^(Lasso.nextState) & s2.^(~(Lasso.nextState)) ) + s1
+}
+
 
 
 -- TO DO: do the auxiliary relatiosn thing from https://haslab.github.io/formal-software-design/modeling-tips/index.html#improved-visualisation-with-auxiliary-relations to make it clearer what's hpapening!
@@ -195,7 +234,7 @@ TO DO
 Right now im thinking of handling terminal states via extensions of state sig
 */
 pred finis[s: State] {
-    s = stPDPCAndOrgAgree or s = stOrgBrokeLaw
+    s = stOrgBrokeLaw or s = stAllDone --- stAllDone = state that we'll move to when we're done triggering and checking all the possible obligations
 }
 
 pred stutter[pre: State, post: State] {
@@ -203,8 +242,8 @@ pred stutter[pre: State, post: State] {
 
     pre.notifyStatus = post.notifyStatus
     pre = stOrgBrokeLaw <=> post = stOrgBrokeLaw
-    pre = stPDPCAndOrgAgree <=> post = stPDPCAndOrgAgree
-    pre = stDeadlineOrgResponseToNDB <=> post = stDeadlineOrgResponseToNDB
+    pre = stAllDone <=> post = stAllDone
+    pre = stDeadlineOrgNotifyPDPCAbtNDB <=> post = stDeadlineOrgNotifyPDPCAbtNDB
     pre = stNotifiableDataBreach <=> post = stNotifiableDataBreach
 
 }
@@ -215,6 +254,7 @@ pred stutter[pre: State, post: State] {
 (2)  Subject to subsections (5), (6) and (7), on or after notifying the Commission under subsection (1), the organisation must also notify each affected individual affected by a notifiable data breach mentioned in section 26B(1)(a) in any manner that is reasonable in the circumstances.
 */
 
+// TO THINK ABT: Add a deadline state for org to respond to affected?
 -- helper pred
 pred OrgNotifiesAffectedOnOrAfterNotifyingPDPC[orgRespToNDBState: State] {
     orgRespToNDBState.notifyStatus[PDPC] = PDPCNotifiedByOrg -- guard
@@ -222,28 +262,29 @@ pred OrgNotifiesAffectedOnOrAfterNotifyingPDPC[orgRespToNDBState: State] {
     // this is basically an exclusive or: Org either notifies affected at same time as notifying PDPC, or one state after
     not { 
         orgRespToNDBState.notifyStatus[Org] = NotifyAffected <=>
-        { some Trace.next[orgRespToNDBState] and { (Trace.next[orgRespToNDBState]).notifyStatus[Org] = NotifyAffected } } 
+        { some orgRespToNDBState.next and { (orgRespToNDBState.next).notifyStatus[Org] = NotifyAffected } } 
     }
 }
 
--- initial to stDeadlineOrgResponseToNDB
-pred deadlineOrgResponseToNDB[pre: State] {
+-- initial to stDeadlineOrgNotifyPDPCAbtNDB
+pred deadlineOrgResponseToNDBNotifyPDPC[pre: State, post: State] {
+    // moving to stDeadlineOrgNotifyPDPCAbtNDB (state representing deadline for org to notify PDPC)
     -- GUARDS
-    pre = Trace.initial // might be stronger than what we really want, but nice to keep it simple for now
+    pre = stInitial // might be stronger than what we really want, but nice to keep it simple for now
     PDPCSaysDoNotNotifyAffected not in pre.notifyStatus[PDPC]
     // I'm imagining the edge case where PDPC somehow pre-emptively tells the org not to notify affected people about any possible issues arising from some likely but not yet confirmed notifiable data breach
 
     -- ACTIONS
-    Trace.next[pre] = stDeadlineOrgResponseToNDB
+    pre.next = post
 
     // TO CHK: Might the first two be redundant tautologies?
 
     -- A. What can Org do?
     --- 1. Org either notifies PDPC by deadline, or does not 
     // Simplifying assumption: PDPC does not learn about data breach via other means by the next state
-    stDeadlineOrgResponseToNDB.notifyStatus[PDPC] = PDPCNotifiedByOrg or { no stDeadlineOrgResponseToNDB.notifyStatus[PDPC] }
-    --- 2. Org either notifies affected on or after notifying PDPC, or does not notify affected individuals
-    not { OrgNotifiesAffectedOnOrAfterNotifyingPDPC[stDeadlineOrgResponseToNDB] <=> { no stDeadlineOrgResponseToNDB.notifyStatus[Org] } }
+    stDeadlineOrgNotifyPDPCAbtNDB.notifyStatus[PDPC] = PDPCNotifiedByOrg or { no stDeadlineOrgNotifyPDPCAbtNDB.notifyStatus[PDPC] }
+    --- 2. Org either (i) notifies affected on or after notifying PDPC, or (ii) does not notify affected individuals
+    not { OrgNotifiesAffectedOnOrAfterNotifyingPDPC[stDeadlineOrgNotifyPDPCAbtNDB] <=> { no stDeadlineOrgNotifyPDPCAbtNDB.notifyStatus[Org] } }
 
     --- frame conditions
 }
@@ -251,19 +292,27 @@ pred deadlineOrgResponseToNDB[pre: State] {
 --- ah but which pred should that be in?
 
 pred enabledCheckIfOrgRespBrokeLaw[pre: State] {
-    pre = stDeadlineOrgResponseToNDB
+    pre = stDeadlineOrgNotifyPDPCAbtNDB
 }
 
 pred checkIfOrgRespBrokeLaw[pre: State, post: State] {
     enabledCheckIfOrgRespBrokeLaw[pre]
     
     { PDPCNotifiedByOrg not in pre.notifyStatus[PDPC] or not OrgNotifiesAffectedOnOrAfterNotifyingPDPC[pre] } => post = stOrgBrokeLaw
+    /* TO DO: 
+    1. Change to the post states of the oblig sig
+    2. Refactor: instead of using `pre`, use the duration states of the obligation? i.e., if in any of the duration states we do the right thing, we're good, else we're in trouble... 
+    */
 }
+
 
 pred enabledPDPCRespondsToOrg[pre: State] {
+    // TO ADD: have not responded before
+
+
+    // TO DO: Weaken this to: if in pre or in some state before pre, this is the case...
     pre.notifyStatus[PDPC] = PDPCNotifiedByOrg    
 }
-
 pred PDPCRespondsToOrg[pre: State, post: State] {
     enabledPDPCRespondsToOrg[pre]
 
@@ -285,23 +334,31 @@ pred OrgNotifyAffectedIsForever {
 
     let stt = {st: State | NotifyAffected in st.notifyStatus[Org]} | 
         // for all subsequent states / times, that notification status persists
-        { all s_after: State | s_after in stt.^(Trace.next) => NotifyAffected in s_after.notifyStatus[Org] } 
+        { all s_after: State | s_after in stt.^next => NotifyAffected in s_after.notifyStatus[Org] } 
 }
 pred PDPCNotifyDecisionIsForever {
     let stt = {st: State | NotifyAffected in st.notifyStatus[PDPC]} | 
         // for all subsequent states / times, that notification status persists
-        { all s_after: State | s_after in stt.^(Trace.next) => NotifyAffected in s_after.notifyStatus[PDPC] } 
+        { all s_after: State | s_after in stt.^next => NotifyAffected in s_after.notifyStatus[PDPC] } 
 
     let stt2 = {st: State | PDPCSaysDoNotNotifyAffected in st.notifyStatus[PDPC]} | 
-        // for all subsequent states / times, that notification status persists
-        { all s_after: State | s_after in stt2.^(Trace.next) => PDPCSaysDoNotNotifyAffected in s_after.notifyStatus[PDPC] } 
+        { all s_after: State | s_after in stt2.^next => PDPCSaysDoNotNotifyAffected in s_after.notifyStatus[PDPC] } 
+}
+
+pred wellFormedObligations {
+    // set the lone / one obligation sigs
 }
 
 pred wellformed {
+    wellFormedObligations
+
     OrgNotifyAffectedIsForever
     PDPCNotifyDecisionIsForever
 }
 
+pred checkIfAllDone {
+
+}
 
 pred traces {
     /* 
@@ -316,16 +373,20 @@ pred traces {
     */
     wellformed
 
-    init[Trace.initial]
-    no sprev: State | Trace.next[sprev] = Trace.initial
+    init[stInitial]
+    no sprev: State | sprev.next = stInitial
 
-    deadlineOrgResponseToNDB[Trace.initial]
+    deadlineOrgResponseToNDBNotifyPDPC[stInitial, stDeadlineOrgNotifyPDPCAbtNDB] 
+    // TO DO: add the logic about how to handle Org notifying affected at same tiem vs one state after here
 
-    all s: State - Trace.initial | {
-        some Trace.next[s] implies {
-            checkIfOrgRespBrokeLaw[s, Trace.next[s]] or
-            PDPCRespondsToOrg[s, Trace.next[s]] or
-            stutter[s, Trace.next[s]]
+
+    all s: State - stInitial | {
+        some s.next implies {
+            // TO DO: Think abt: WHEN can PDPC respond to ORg?
+            checkIfOrgRespBrokeLaw[s, s.next] or
+            PDPCRespondsToOrg[s, s.next] or
+            checkIfAllDone[s, s.next]
+            stutter[s, s.next]
             }
     }
 }
@@ -379,11 +440,8 @@ Scratchpad
 --------
 
 
-/*abstract sig Event {}
-one sig Init, OrgRecognizesNotifiableDataBreach, eOrgBrokeLaw extends Event {}
--- ignoring *non* notifiable data breaches since those aren't interesting
  
-
+/*
 How to model events?
 How should we handle obligations and blame assignment?
 
