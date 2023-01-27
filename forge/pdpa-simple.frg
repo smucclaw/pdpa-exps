@@ -101,56 +101,8 @@ one sig PDPC, Org extends Actor {}
 * I'm currently folding in Affected / Individual into the states instead of treating it as a separate actor to whom messages can be passed, but is that simplification OK?
 * Is PDPC really on same ontological level as Org? Might make more sense to have separate sig for PDPC
 * Might it be better to fold the PDPC stuff into the states?
-
-======= How to model the state? =============
---- One way: something like
-
-abstract sig WhetherToNotifyAffected {}
-one sig NotifyAffected, PDPCSaysDoNotNotifyAffected extends WhetherToNotifyAffected {}
-
-sig State {
-    notifyStatus: func Actor -> WhetherToNotifyAffected,
-}
-
---- Another way: use a very barebones main state sig and put the state info in the actor sub sigs 
-sig TIME {
-    next: lone TIME
-}
-...
-
-
---- Third way: really simplify and just have something like the following one sig states:
-1. Initial
-2. ThereIsNotifiableDB
-3. ...?
-
 */
 
-/*
-Avishkar: distingusih between (i) comapny delibereately notifying individual despite receiving prohibition
-and (ii) company notifies idnviidual and then commission 
-
-
-Joe:
-do a precondition check: when do not notify obligation comes into effect, 
-
-two bool flags:
-1. individual notified
-2. do not notify indivdual
-deadlock 
-
-Martin: non-deadlock conception closer to how ppl think about it
-
-
-I should finish up this model
-see if what model checking results we can get out of it, how usefu lit is vis - a vis uppal
-
-modelling of terminologies better in alloy than uppal
-* an event is some sort of type, has x y z properties, possibly being triggered by somebody
-
-had class definitions in baby L4 tht were ptu on hold, and that are similar to Alloy sigs
-translating classes to Uppal difficult. So Alloy is useful target
-*/
 
 
 abstract sig Notification {}
