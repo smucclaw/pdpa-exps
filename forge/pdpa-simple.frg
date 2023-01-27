@@ -103,8 +103,6 @@ one sig PDPC, Org extends Actor {}
 * Might it be better to fold the PDPC stuff into the states?
 */
 
-
-
 abstract sig Notification {}
 one sig NotifyAffected, PDPCSaysDoNotNotifyAffected, PDPCNotifiedByOrg extends Notification {}
 -- strictly speaking, NotifyAffected has two meanings here: for the PDPC, it means 'Org *must* notify affected', whereas for the org, it will be: Org has notified / is now notifying affected
@@ -135,10 +133,6 @@ one sig stInitial, stNotifiableDataBreach, stDeadlineOrgNotifyPDPCAbtNDB, stOrgB
 // one sig evObligStart, evObligCheck extends Event {}
 -- ignoring *non* notifiable data breaches since those aren't interesting
 
-/*
-would it make sense to use sigs for obligations too?
-*/
-
 abstract sig Obligation {
     actr: one Actor, 
     // can be set thereof in more complicated models
@@ -146,27 +140,33 @@ abstract sig Obligation {
     // states where the obligation is active (and where the actor can take the relevant actio nor not),
     // maybe better to put this info in State sig?
 
-    // add check_state and start_of_oblig?
 
+    // in this specification, all the obligations have exactly one trigger and exactly one check state
+    oblig_trigger: one State,  
+    oblig_check: one State,
     happy_posts: set State,
-    penalty_posts: set State
+    sanction_posts: lone State // in the more general case, this would be `set` and not `lone`
     // where these are *immediate* post states 
-    // from the possible happy and penalty post states, it should be possible to recover the __action(s)__ that the actor must take?
+    // from the possible happy and sanction post states, it should be possible to recover the __action(s)__ that the actor must take?
 }
 
 one sig oblOrgToNotifyPDPC, oblOrgToNotifyAffected extends Obligation {}
 lone sig oblPDPCImposesGagOrder extends Obligation {}
 
 ------------------------ UTILITY FUNCS ---------------------------------------------------
+-- states before s, not including s
+fun statesBefore[s: State]: set State {
+    s.^(~nextState)
+}
+
 -- states that r bet s1 and s2, not inclusive
 fun between[s1: State, s2: State]: set State {
-    s1.^(Lasso.nextState) & s2.^(~(Lasso.nextState))
+    s1.^nextState & statesBefore[s2]
 }
 
 fun betweenInclLeft[s1: State, s2: State]: set State {
-    ( s1.^(Lasso.nextState) & s2.^(~(Lasso.nextState)) ) + s1
+    ( s1.^nextState & s2.^(~nextState) ) + s1
 }
-
 
 
 -- TO DO: do the auxiliary relatiosn thing from https://haslab.github.io/formal-software-design/modeling-tips/index.html#improved-visualisation-with-auxiliary-relations to make it clearer what's hpapening!
@@ -185,7 +185,7 @@ pred init[s: State] {
 TO DO
 Right now im thinking of handling terminal states via extensions of state sig
 */
-pred finis[s: State] {
+pred finis[s: State] { // check if we're in a 'terminal' state
     s = stOrgBrokeLaw or s = stAllDone --- stAllDone = state that we'll move to when we're done triggering and checking all the possible obligations
 }
 
@@ -211,11 +211,11 @@ pred stutter[pre: State, post: State] {
 pred OrgNotifiesAffectedOnOrAfterNotifyingPDPC[orgRespToNDBState: State] {
     orgRespToNDBState.notifyStatus[PDPC] = PDPCNotifiedByOrg -- guard
 
-    // this is basically an exclusive or: Org either notifies affected at same time as notifying PDPC, or one state after
-    not { 
-        orgRespToNDBState.notifyStatus[Org] = NotifyAffected <=>
-        { some orgRespToNDBState.next and { (orgRespToNDBState.next).notifyStatus[Org] = NotifyAffected } } 
-    }
+    // this is an exclusive or: Org either notifies affected at same time as notifying PDPC, or one state after, but not both.
+    let OrgNotifiesBothAtSameTime = orgRespToNDBState.notifyStatus[Org] = NotifyAffected |
+    let OrgNotifiesAffectedAfter = some orgRespToNDBState.next and { (orgRespToNDBState.next).notifyStatus[Org] = NotifyAffected } |
+        OrgNotifiesBothAtSameTime iff not OrgNotifiesAffectedAfter
+        
 }
 
 -- initial to stDeadlineOrgNotifyPDPCAbtNDB
