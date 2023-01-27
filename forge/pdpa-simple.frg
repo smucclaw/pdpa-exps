@@ -17,9 +17,9 @@ Maybe:
 * then when we need to check whether some actor is __obligated / required__ to do X by that deadline (i.e., whether X is an obligation), we can just use something like: is there a next state S' such that, if A does not do X by the deadline state, then A will be sanctioned in S' (in this use case, will move to OrgBrokeLaw state in S' / S' = OrgBrokeLaw)
 * This would allow us to ask about obligations in our queries. And we'd be able to use the auxiliary relation trick to keep track in the visualizer of when specific obligations have been fulfilled or violated
 
-Maybe the way to think about how to formulate the query:
+Maybe the way to think about how to formulate the query, v2:
 
-* the more general, fundamental principle here might be some sort of 'oughht implies can' principle: the requirements / legislation should be such that parties can feasibly comply with them. 
+* the more general, fundamental principle here might be some sort of 'ought implies can' principle: the requirements / legislation should be such that parties can feasibly comply with them. 
     In particular --- and this would be an especially egregious violation of this principle --- we shouldn't have laws where you can end up breaking the law *even though the actions you took were ones that, in light of the info you had at the time, you might be reasonably expected to take in order to comply with the law*. (not saying the simpler 'had to take' b/c might quibble that the way to avoid possible race conditions is to ask the pdpc first before acting)
 
 * So the queries that the above thought would suggest is: 
