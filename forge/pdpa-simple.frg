@@ -104,7 +104,7 @@ one sig PDPC, Org extends Actor {}
 */
 
 abstract sig Notification {}
-one sig NotifyAffected, PDPCSaysDoNotNotifyAffected, PDPCNotifiedByOrg extends Notification {}
+one sig NotifyAffected, PDPCSaysDoNotNotifyAffected, OrgNotifiesPDPC extends Notification {}
 -- strictly speaking, NotifyAffected has two meanings here: for the PDPC, it means 'Org *must* notify affected', whereas for the org, it will be: Org has notified / is now notifying affected
 
 /*
@@ -117,6 +117,7 @@ Not sure if shld use Event or State for this --- look more closely at the tutori
 sig State {
     notifyStatus: pfunc Actor -> Notification
     -- impt that this be pfunc and not func!
+    -- what notification(s) / notification decision(s) Actor has made
 
     next: lone State
     /* TO DO another time
@@ -140,7 +141,6 @@ abstract sig Obligation {
     // states where the obligation is active (and where the actor can take the relevant actio nor not),
     // maybe better to put this info in State sig?
 
-
     // in this specification, all the obligations have exactly one trigger and exactly one check state
     oblig_trigger: one State,  
     oblig_check: one State,
@@ -151,21 +151,23 @@ abstract sig Obligation {
 }
 
 one sig oblOrgToNotifyPDPC, oblOrgToNotifyAffected extends Obligation {}
-lone sig oblPDPCImposesGagOrder extends Obligation {}
+lone sig oblOrgSilencedByPDPC extends Obligation {}
+
+// TO DO: Will have to addd obligation-related frame conditions and change preds too!
+
 
 ------------------------ UTILITY FUNCS ---------------------------------------------------
--- states before s, not including s
 fun statesBefore[s: State]: set State {
-    s.^(~nextState)
+    s.^(~next)
 }
 
 -- states that r bet s1 and s2, not inclusive
 fun between[s1: State, s2: State]: set State {
-    s1.^nextState & statesBefore[s2]
+    s1.^next & statesBefore[s2]
 }
 
 fun betweenInclLeft[s1: State, s2: State]: set State {
-    ( s1.^nextState & s2.^(~nextState) ) + s1
+    ( s1.^next & s2.^(~next) ) + s1
 }
 
 
@@ -174,7 +176,41 @@ fun betweenInclLeft[s1: State, s2: State]: set State {
 --one sig Initial, OrgRecognizesNotifiableDataBreach extends State {} 
 -- assume the req to notify is NOT waived in virtue of the org taking action to "[render] it unlikely that the notifiable data breach will result in significant harm to the affected individual"
 
-pred init[s: State] {
+------------ PREDS -------------------------------------------------
+
+// OK don't worry about obligs till I've got the overall structure of the states sorted out!
+// pred initOblOrgSilencedByPDPC {
+//     oblOrgSilencedByPDPC.actr = Org
+//     oblOrgSilencedByPDPC.oblig_trigger = 
+//     oblOrgSilencedByPDPC.oblig_check = 
+//     oblOrgSilencedByPDPC.happy_posts = 
+//     oblOrgSilencedByPDPC.sanction_posts = 
+// }
+
+// pred initOblOrgToNotifyPDPC {
+//     oblOrgToNotifyPDPC.actr = Org
+//     oblOrgToNotifyPDPC.oblig_trigger = stNotifiableDataBreach
+//     oblOrgToNotifyPDPC.oblig_check = stDeadlineOrgNotifyPDPCAbtNDB
+//     oblOrgToNotifyPDPC.happy_posts = 
+//     oblOrgToNotifyPDPC.sanction_posts = 
+// }
+
+// pred initOblOrgToNotifyAffected {
+//     oblOrgToNotifyAffected.actr = Org
+//     oblOrgToNotifyAffected.oblig_trigger = stNotifiableDataBreach
+//     oblOrgToNotifyAffected.oblig_check = stDeadlineOrgNotifyPDPCAbtNDB
+//     oblOrgToNotifyAffected.happy_posts = 
+//     oblOrgToNotifyAffected.sanction_posts = 
+// }
+
+// pred initObligations[initialst: State] {
+//     // set the lone / one obligation sigs
+//     initOblOrgToNotifyPDPC
+//     initOblOrgToNotifyAffected
+//     oblOrgSilencedByPDPC in initialst.*next => initOblOrgSilencedByPDPC
+// }
+
+pred initNDB[s: State] {
     all actr: Actor | no s.notifyStatus[actr]
     --- linearity of next is handled by the run statements
 
@@ -209,7 +245,7 @@ pred stutter[pre: State, post: State] {
 // TO THINK ABT: Add a deadline state for org to respond to affected?
 -- helper pred
 pred OrgNotifiesAffectedOnOrAfterNotifyingPDPC[orgRespToNDBState: State] {
-    orgRespToNDBState.notifyStatus[PDPC] = PDPCNotifiedByOrg -- guard
+    orgRespToNDBState.notifyStatus[Org] = OrgNotifiesPDPC -- guard
 
     // this is an exclusive or: Org either notifies affected at same time as notifying PDPC, or one state after, but not both.
     let OrgNotifiesBothAtSameTime = orgRespToNDBState.notifyStatus[Org] = NotifyAffected |
@@ -218,8 +254,7 @@ pred OrgNotifiesAffectedOnOrAfterNotifyingPDPC[orgRespToNDBState: State] {
         
 }
 
--- initial to stDeadlineOrgNotifyPDPCAbtNDB
-pred deadlineOrgResponseToNDBNotifyPDPC[pre: State, post: State] {
+pred initialToDeadlineOrgNotifyPDPC[pre: State, post: State] {
     // moving to stDeadlineOrgNotifyPDPCAbtNDB (state representing deadline for org to notify PDPC)
     -- GUARDS
     pre = stInitial // might be stronger than what we really want, but nice to keep it simple for now
@@ -234,8 +269,8 @@ pred deadlineOrgResponseToNDBNotifyPDPC[pre: State, post: State] {
     -- A. What can Org do?
     --- 1. Org either notifies PDPC by deadline, or does not 
     // Simplifying assumption: PDPC does not learn about data breach via other means by the next state
-    stDeadlineOrgNotifyPDPCAbtNDB.notifyStatus[PDPC] = PDPCNotifiedByOrg or { no stDeadlineOrgNotifyPDPCAbtNDB.notifyStatus[PDPC] }
-    --- 2. Org either (i) notifies affected on or after notifying PDPC, or (ii) does not notify affected individuals
+    stDeadlineOrgNotifyPDPCAbtNDB.notifyStatus[Org] = OrgNotifiesPDPC or { OrgNotifiesPDPC not in stDeadlineOrgNotifyPDPCAbtNDB.notifyStatus[Org] }
+    --- 2. Org either (i) notifies affected on or after notifying PDPC, or (ii) does not notify affected individuals, but not both
     not { OrgNotifiesAffectedOnOrAfterNotifyingPDPC[stDeadlineOrgNotifyPDPCAbtNDB] <=> { no stDeadlineOrgNotifyPDPCAbtNDB.notifyStatus[Org] } }
 
     --- frame conditions
@@ -250,7 +285,7 @@ pred enabledCheckIfOrgRespBrokeLaw[pre: State] {
 pred checkIfOrgRespBrokeLaw[pre: State, post: State] {
     enabledCheckIfOrgRespBrokeLaw[pre]
     
-    { PDPCNotifiedByOrg not in pre.notifyStatus[PDPC] or not OrgNotifiesAffectedOnOrAfterNotifyingPDPC[pre] } => post = stOrgBrokeLaw
+    { OrgNotifiesPDPC not in pre.notifyStatus[PDPC] or not OrgNotifiesAffectedOnOrAfterNotifyingPDPC[pre] } => post = stOrgBrokeLaw
     /* TO DO: 
     1. Change to the post states of the oblig sig
     2. Refactor: instead of using `pre`, use the duration states of the obligation? i.e., if in any of the duration states we do the right thing, we're good, else we're in trouble... 
@@ -263,7 +298,7 @@ pred enabledPDPCRespondsToOrg[pre: State] {
 
 
     // TO DO: Weaken this to: if in pre or in some state before pre, this is the case...
-    pre.notifyStatus[PDPC] = PDPCNotifiedByOrg    
+    pre.notifyStatus[PDPC] = OrgNotifiesPDPC    
 }
 pred PDPCRespondsToOrg[pre: State, post: State] {
     enabledPDPCRespondsToOrg[pre]
@@ -297,13 +332,8 @@ pred PDPCNotifyDecisionIsForever {
         { all s_after: State | s_after in stt2.^next => PDPCSaysDoNotNotifyAffected in s_after.notifyStatus[PDPC] } 
 }
 
-pred wellFormedObligations {
-    // set the lone / one obligation sigs
-}
 
 pred wellformed {
-    wellFormedObligations
-
     OrgNotifyAffectedIsForever
     PDPCNotifyDecisionIsForever
 }
@@ -325,10 +355,10 @@ pred traces {
     */
     wellformed
 
-    init[stInitial]
+    initNDB[stInitial]
     no sprev: State | sprev.next = stInitial
 
-    deadlineOrgResponseToNDBNotifyPDPC[stInitial, stDeadlineOrgNotifyPDPCAbtNDB] 
+    initialToDeadlineOrgNotifyPDPC[stInitial, stDeadlineOrgNotifyPDPCAbtNDB] 
     // TO DO: add the logic about how to handle Org notifying affected at same tiem vs one state after here
 
 
