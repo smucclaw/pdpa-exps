@@ -542,8 +542,9 @@ test expect {
 
     */
 
-
     --- tests of the legislation / 'system'
+
+
 }
 
 
@@ -563,53 +564,3 @@ run {
 // run {
 //     traces
 // } for 5 Int for {next is linear}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
--- maybe the way to talk about DB vs Notifible DB is with a predicate (or with var fields, a la location in the mutual exclusion example), and not sigs?
-// abstract sig DataBreach {}
-// one sig NonNotifiableDB, NotifiableDB extends DataBreach {}
-
-/*
-
-Scratchpad
---------
-
-
- 
-/*
-How to model events?
-How should we handle obligations and blame assignment?
-
-
-pred Obligation[owedFrom, owedTo, duty, prereqs, exemptions, penalty] {
-
-    -- and if penalty not paid (or if no penalty), then owedTo has run afoul of law / contract breached
-}
-
-pred BrokenLaw[t: Time, actr: Actor] {
-
-}
-
-maybe to get the contradikcton what we really need is
-
-pred ObligatedToNotify[src, tgt] -- and also interval?
-
-
-// 
-one sig Org extends Actor  {
-    obligations:  set Oblig -> Time
-}
-// */
