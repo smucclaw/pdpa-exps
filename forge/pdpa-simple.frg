@@ -114,7 +114,8 @@ one sig PDPC, Org extends Actor {}
 */
 
 abstract sig Notification {}
-one sig nNotifyAffected, nOrgNOTnotifyAffected, nPDPCSaysDoNotNotifyAffected, nOrgNotifiesPDPC, nOrgNOTnotifyPDPC extends Notification {}
+one sig nNotifyAffected, nOrgNOTnotifyAffected, nPDPCSaysDoNotNotifyAffected extends Notification {}
+one sig nOrgNotifiesPDPC, nOrgNOTnotifyPDPC extends Notification {}
 -- strictly speaking, nNotifyAffected has two meanings here: for the PDPC, it means 'Org *must* notify affected', whereas for the org, it will be: Org has notified / is now notifying affected
 
 /*
@@ -227,7 +228,6 @@ pred initNDB[s: State] {
     all actr: Actor | no s.notifyStatus[actr]
     --- linearity of next is handled by the run statements
 
-    s = stNDBreach
 }
 
 /*
@@ -241,7 +241,11 @@ pred finis[s: State] { // check if we're in a 'terminal' state
 pred someSubstantiveTransEnabled[pre: State] {
     enabledOrgPotentiallyNotifiesAffected[pre] or 
     enabledOrgPotentiallyNotifiesPDPC[pre] or 
-    enabledPDPCRespondsToOrg[pre] 
+    enabledPostprocessOrgNotifPDPC[pre] or
+    enabledPostprocessOrgNotifiesAffected[pre] or
+
+    enabledPDPCRespondsToOrg[pre] or
+    enabledPostprocessPDPCRespondsToOrg[pre]
 }
 // TO DO: Chk / refactor
 pred stutter[pre: State, post: State] {
@@ -304,6 +308,17 @@ pred orgPotentiallyNotifiesPDPC[pre: State, post: State] {
     // TO DO: include oblig related state when get around to adding that
 }
 
+pred enabledPostprocessOrgNotifPDPC[pre: State] {
+    nOrgNOTnotifyPDPC in pre.notifyStatus[Org] or nOrgNotifiesPDPC in pre.notifyStatus[Org]
+}
+pred postprocessOrgNotifiesPDPC[pre: State, post: State] {
+    enabledPostprocessOrgNotifPDPC[pre]
+
+    // Make sure the PDPC related notification flags not in post
+    post.notifyStatus[Org] = pre.notifyStatus[Org] - nOrgNotifiesPDPC - nOrgNOTnotifyPDPC
+}
+
+
 pred enabledOrgPotentiallyNotifiesAffected[pre: State] {
     // 1. First time Org considering whether to notify affected / making this move wrt affected
     // no {s: State | s in statesBefore[pre] and OrgPotentiallyNotifiesAffected[s, s.next]}
@@ -336,6 +351,16 @@ pred orgPotentiallyNotifiesAffected[pre: State, post: State] {
     // TO DO: include oblig related state when get around to adding that
 }
 
+pred enabledPostprocessOrgNotifiesAffected[pre: State] {
+    nNotifyAffected in pre.notifyStatus[Org] or nOrgNOTnotifyAffected in pre.notifyStatus[Org]
+}
+pred postprocessOrgNotifiesAffected[pre: State, post: State] {
+    enabledPostprocessOrgNotifiesAffected[pre]
+
+    post.notifyStatus[Org] = pre.notifyStatus[Org] - nNotifyAffected - nOrgNOTnotifyAffected
+}
+
+
 pred enabledPDPCRespondsToOrg[pre: State] {
     // Require that PDPC has not made any kind of response before
     no {s: State | s in (statesBefore[pre] + pre) and some s.notifyStatus[PDPC]}
@@ -351,6 +376,15 @@ pred PDPCRespondsToOrgIfOrgHadNotified[pre: State, post: State] {
     // Simplifying modelling assumption: PDPC won't just ignore Org's notification and do nothing
 
     // TO DO: Handle oblig triggering and exempting stuff based on whether PDPC says to or not to notify affected
+}
+
+pred enabledPostprocessPDPCRespondsToOrg[pre: State] {
+    nNotifyAffected in pre.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in pre.notifyStatus[PDPC]
+}
+pred postprocessPDPCRespondsToOrg[pre: State, post: State] {
+    enabledPostprocessPDPCRespondsToOrg[pre]
+
+    post.notifyStatus[PDPC] = pre.notifyStatus[PDPC] - nNotifyAffected - nPDPCSaysDoNotNotifyAffected
 }
 
 
@@ -391,6 +425,9 @@ pred PDPCAndOrgAgree[s: State] {
     nPDPCSaysDoNotNotifyAffected not in s.notifyStatus[PDPC]
 }
 
+----------- TO DO: Add event funs! -----------
+
+
 
 pred wellformed {
     // don't think we need these after all, given that we can just talk about  obligations that get triggered and persist (and given how that's clearer)
@@ -425,15 +462,21 @@ pred traces {
     wellformed
 
     // stNDBreach is our initial state
-    initNDB[stNDBreach]
+    initNDB[stNDBreach] 
     no sprev: State | sprev.next = stNDBreach
     
     all s: State | {
         some s.next implies {
             orgPotentiallyNotifiesPDPC[s, s.next] or
+            postprocessOrgNotifiesPDPC[s, s.next] or
+            
             orgPotentiallyNotifiesAffected[s, s.next] or
+            postprocessOrgNotifiesAffected[s, s.next] or
+
             PDPCRespondsToOrgIfOrgHadNotified[s, s.next] or
-            toyStutter[s, s.next]
+            postprocessPDPCRespondsToOrg[s, s.next]
+            // or
+            // toyStutter[s, s.next]
             // or
             // TO DO: Chk that basic infra / state transitions work first before adding in obligation stuff
             // checkAllObligsAtFinalDedln[s, s.next] or
@@ -442,36 +485,63 @@ pred traces {
     }
 }
 
+// OK there's some issue with our states 
 
 test expect {
     --- tests of specification / model
-    // wellformedVacuity: { wellformed } is sat
-    // tracesVacuity: { traces } is sat
+    wellformedVacuity: { wellformed } is sat
+    tracesVacuity: { traces } is sat
 
-    // EnablingPredForNotifyingPDPCIsSat: {
-    //     traces
-    //     some {s: State | enabledOrgPotentiallyNotifiesPDPC[s]}
-    // } for 3 State for {next is linear} is sat
+    EnablingPredForNotifyingPDPCIsSat: {
+        traces
+        some {s: State | enabledOrgPotentiallyNotifiesPDPC[s]}
+    } for {next is linear} is sat
 
-    // PossibleForOrgToNotifyPDPC: {
-    //     traces 
-    //     some {s: State | nOrgNotifiesPDPC in s.notifyStatus[Org]}
-    // }  for 4 State for {next is linear} is sat 
+    PossibleOrgNotifiesPDPC: {
+        traces 
+        some {s: State | nOrgNotifiesPDPC in s.notifyStatus[Org]}
+    }  for 4 State for {next is linear} is sat 
 
+    PossibleOrgNotNotifyPDPC: {
+        traces 
+        no {s: State | nOrgNotifiesPDPC in s.notifyStatus[Org]}
+    }  for 4 State for {next is linear} is sat 
 
+    PossibleOrgNotifiesAffected: {
+        traces 
+        some {s: State | nNotifyAffected in s.notifyStatus[Org]}
+    }  for {next is linear} is sat 
 
-    // PossibleForOrgToNotNotifyPDPC: {
-    //     traces 
-    //     no {s: State | nOrgNotifiesPDPC in s.notifyStatus[Org]}
-    // }  for 2 State for {next is linear} is sat 
+    OrgNotifiesAffectedOnlyAtMostOnce: {
+        traces implies #{s: State | nNotifyAffected in s.notifyStatus[Org]} <= 1
+    } for 3 State for {next is linear} is theorem
+    -- TO DO: check with higher number of states once we fix the stutter transitions
 
+    PDPCWillNotMakeBothNotifications: {
+        traces implies #{s: State | nNotifyAffected in s.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC] } <= 1      
+    } for 3 State for {next is linear} is theorem
+    -- TO DO: check with higher number of states once we fix the stutter transitions
+
+    PossibleForPDPCToSayNotify: {
+        traces
+        some {s: State | nNotifyAffected in s.notifyStatus[PDPC]}
+    } for 4 State for {next is linear} is sat
+   
+    PossibleForPDPCToImposeGagOrder: {
+        traces
+        some {s: State | nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]}
+    } for 4 State for {next is linear} is sat
+
+    PDPCWillNotRespondToOrgAtSameTimeThatOrgConsidersNotifyingPDPC: {
+        traces  
+        some s: State | PDPCRespondsToOrgIfOrgHadNotified[s, s.next] and orgPotentiallyNotifiesPDPC[s, s.next]
+    } for {next is linear} is unsat
     /*TO DO: 
-    PDPCWillNotRespondToOrgAtSameTimeThatOrgNotifiesPDPC
+    PDPC won't ever 'respond' before Org notifies it   
     PDPC will always respond if it's been notified by Org
 
     */
 
-    // TO DO: PossibleForPDPCToGoForEitherResponseToOrg
 
     --- tests of the legislation / 'system'
 }
@@ -479,7 +549,7 @@ test expect {
 
 run { 
      traces
-    } for 3 State for {next is linear}
+    } for exactly 5 State for {next is linear}
 
     
 
