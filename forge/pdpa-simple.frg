@@ -517,6 +517,37 @@ test expect {
     } for 3 State for {next is linear} is theorem
     -- TO DO: check with higher number of states once we fix the stutter transitions
 
+    PossibleOrgNotifyAffectedBeforeNotifyingPDPC: {
+        traces
+        some disj s1, s2: State | 
+            { 
+                s2 in s1.^next
+                nNotifyAffected in s1.notifyStatus[Org]
+                nOrgNotifiesPDPC in s2.notifyStatus[Org]
+            }
+    } for {next is linear} is sat
+
+    PossibleOrgNotifyAffectedBeforeNOTNotifyingPDPC: {
+        traces
+        some disj s1, s2: State | 
+            { 
+                s2 in s1.^next
+                nNotifyAffected in s1.notifyStatus[Org]
+                nOrgNOTnotifyPDPC in s2.notifyStatus[Org]
+            }
+    } for {next is linear} is sat
+
+    PossibleOrgNOTNotifyAffectedBeforeNOTNotifyingPDPC: {
+        traces
+        some disj s1, s2: State | 
+            { 
+                s2 in s1.^next
+                nOrgNOTnotifyAffected in s1.notifyStatus[Org]
+                nOrgNOTnotifyPDPC in s2.notifyStatus[Org]
+            }
+    } for {next is linear} is sat
+
+
     PDPCWillNotMakeBothNotifications: {
         traces implies #{s: State | nNotifyAffected in s.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC] } <= 1      
     } for 3 State for {next is linear} is theorem
