@@ -294,10 +294,16 @@ pred orgPotentiallyNotifiesPDPC[pre: State, post: State] {
     
     -- ACTIONS
     // 1. Org either notifies PDPC or does not 
-    { post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNOTnotifyPDPC or
-    post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNOTnotifyPDPC + nNotifyAffected or
-    post.notifyStatus[Org] = (pre.notifyStatus[Org] + nOrgNotifiesPDPC) or 
-    post.notifyStatus[Org] = (pre.notifyStatus[Org] + nOrgNotifiesPDPC + nNotifyAffected) }
+    not orgPotentiallyNotifiesAffected[pre, post] => {
+        post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNotifiesPDPC or
+        post.notifyStatus[Org] = (pre.notifyStatus[Org] + nOrgNOTnotifyPDPC)
+    }
+    orgPotentiallyNotifiesAffected[pre, post] => {
+        post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNotifiesPDPC + nNotifyAffected or
+        post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNotifiesPDPC + nOrgNOTnotifyAffected or
+        post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNOTnotifyPDPC + nNotifyAffected or
+        post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNOTnotifyPDPC + nOrgNOTnotifyAffected 
+    }
     // this alrdy encodes a frame condition as well
     // note tt we want it to be possible for org to inform affected at same time as they inform pdpc
 
@@ -315,7 +321,8 @@ pred postprocessOrgNotifiesPDPC[pre: State, post: State] {
     enabledPostprocessOrgNotifPDPC[pre]
 
     // Make sure the PDPC related notification flags not in post
-    post.notifyStatus[Org] = pre.notifyStatus[Org] - nOrgNotifiesPDPC - nOrgNOTnotifyPDPC
+    nOrgNotifiesPDPC not in post.notifyStatus[Org]
+    nOrgNOTnotifyPDPC not in post.notifyStatus[Org]
 }
 
 
@@ -338,16 +345,12 @@ pred orgPotentiallyNotifiesAffected[pre: State, post: State] {
     enabledOrgPotentiallyNotifiesAffected[pre]
 
     -- ACTIONS
-    { post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNOTnotifyAffected or
-    post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNOTnotifyAffected + nOrgNotifiesPDPC or 
-    post.notifyStatus[Org] = (pre.notifyStatus[Org] + nNotifyAffected) or 
-    post.notifyStatus[Org] = (pre.notifyStatus[Org] + nNotifyAffected + nOrgNotifiesPDPC) }
-    // note tt we want it to be possible for org to inform affected at same time as they inform pdpc
+    nOrgNOTnotifyAffected in post.notifyStatus[Org] or 
+    nNotifyAffected in post.notifyStatus[Org]
 
     --- other frame conditions 
-    post.notifyStatus[PDPC] = pre.notifyStatus[PDPC]
-    // Modelling assumption: PDPC cannot respond to Org at the same time that Org notifies PDPC; there needs to be at least one tick in between
-
+    // Do NOT say that post.notifyStatus[PDPC] must = pre's!
+    
     // TO DO: include oblig related state when get around to adding that
 }
 
@@ -357,7 +360,9 @@ pred enabledPostprocessOrgNotifiesAffected[pre: State] {
 pred postprocessOrgNotifiesAffected[pre: State, post: State] {
     enabledPostprocessOrgNotifiesAffected[pre]
 
-    post.notifyStatus[Org] = pre.notifyStatus[Org] - nNotifyAffected - nOrgNOTnotifyAffected
+    // post.notifyStatus[Org] = pre.notifyStatus[Org] - nNotifyAffected - nOrgNOTnotifyAffected
+    nNotifyAffected not in post.notifyStatus[Org]
+    nOrgNOTnotifyAffected not in post.notifyStatus[Org]
 }
 
 
@@ -384,7 +389,8 @@ pred enabledPostprocessPDPCRespondsToOrg[pre: State] {
 pred postprocessPDPCRespondsToOrg[pre: State, post: State] {
     enabledPostprocessPDPCRespondsToOrg[pre]
 
-    post.notifyStatus[PDPC] = pre.notifyStatus[PDPC] - nNotifyAffected - nPDPCSaysDoNotNotifyAffected
+    nNotifyAffected not in post.notifyStatus[PDPC] 
+    nPDPCSaysDoNotNotifyAffected not in post.notifyStatus[PDPC]
 }
 
 
@@ -427,9 +433,38 @@ pred PDPCAndOrgAgree[s: State] {
 
 ----------- TO DO: Add event funs! -----------
 
+-- helper pred
+pred PDPCRespondsOnThisState[s: State] {
+    nNotifyAffected in s.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]
+}
+
+pred PDPCWillRespondWithinOneTick {
+    // [Simplifying modelling assumption] a 'non-starvation' property of sorts for PDPC: PDPC will always respond to Org's notification within 1 tick, if Org notifies PDPC in one of the first TWO steps
+    all s: State - stNDBreach | 
+        { 
+            nOrgNotifiesPDPC in s.notifyStatus[Org] =>
+                    PDPCRespondsToOrgIfOrgHadNotified[s, s.next] 
+        }
+    // nOrgNotifiesPDPC in (stNDBreach.next).notifyStatus[Org] => PDPCRespondsToOrgIfOrgHadNotified[stNDBreach.next, (stNDBreach.next).next]
+
+    // nOrgNotifiesPDPC in ((stNDBreach.next).next).notifyStatus[Org] => PDPCRespondsToOrgIfOrgHadNotified[(stNDBreach.next).next, ((stNDBreach.next).next).next]
+}
 
 
+
+pred ifOrgNotifiesPDPCDoesSoWithinFirstThreeSteps { 
+    // for well-formedness
+    {some s: State | nOrgNotifiesPDPC in s.notifyStatus[Org]} implies
+        {
+            nOrgNotifiesPDPC in (stNDBreach.next).notifyStatus[Org] or 
+            nOrgNotifiesPDPC in ((stNDBreach.next).next).notifyStatus[Org] or
+            nOrgNotifiesPDPC in (((stNDBreach.next).next).next).notifyStatus[Org] // to allow for possibility of missing dateline
+        } 
+}
 pred wellformed {
+    ifOrgNotifiesPDPCDoesSoWithinFirstThreeSteps
+    PDPCWillRespondWithinOneTick
+
     // don't think we need these after all, given that we can just talk about  obligations that get triggered and persist (and given how that's clearer)
     // OrgNotifyAffectedIsForever
     // PDPCNotifyDecisionIsForever
@@ -485,7 +520,7 @@ pred traces {
     }
 }
 
-// OK there's some issue with our states 
+
 
 test expect {
     --- tests of specification / model
@@ -567,8 +602,34 @@ test expect {
         traces  
         some s: State | PDPCRespondsToOrgIfOrgHadNotified[s, s.next] and orgPotentiallyNotifiesPDPC[s, s.next]
     } for {next is linear} is unsat
+
+    PDPCWillNotRespondToOrgBeforeOrgConsidersNotifyingPDPC: {
+        traces  
+        some disj s1, s2: State | 
+            {
+                s2 in s1.^next
+                nNotifyAffected in s1.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s1.notifyStatus[PDPC]
+                
+                nOrgNotifiesPDPC in s2.notifyStatus[Org] or nOrgNOTnotifyPDPC in s2.notifyStatus[Org]
+                // this obviously assumes that the org move pred will make one of these two moves
+            }
+    } for 3 State for {next is linear} is unsat
+
+    PDPCWillAlwaysRespondToOrgIfOrgNotifiesIt:  {
+        traces  
+        some s1: State | 
+            {
+                s1 = stNDBreach or s1 = stNDBreach.next 
+                nOrgNotifiesPDPC in s1.notifyStatus[Org] 
+
+                
+                no {s2: State | s2 in s1.^next and (nNotifyAffected in s2.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s2.notifyStatus[PDPC])}
+            } 
+    } for 4 State for {next is linear} is unsat
+
+
+
     /*TO DO: 
-    PDPC won't ever 'respond' before Org notifies it   
     PDPC will always respond if it's been notified by Org
 
     */
@@ -581,7 +642,7 @@ test expect {
 
 run { 
      traces
-    } for exactly 5 State for {next is linear}
+    } for exactly 4 State for {next is linear}
 
     
 
