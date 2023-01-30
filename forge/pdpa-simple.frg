@@ -572,6 +572,16 @@ test expect {
             }
     } for {next is linear} is sat
 
+    PossibleOrgNOTNotifyAffectedBeforeNotifyingPDPC: {
+        traces
+        some disj s1, s2: State | 
+            { 
+                s2 in s1.^next
+                nOrgNOTnotifyAffected in s1.notifyStatus[Org]
+                nOrgNotifiesPDPC in s2.notifyStatus[Org]
+            }
+    } for {next is linear} is sat
+
     PossibleOrgNOTNotifyAffectedBeforeNOTNotifyingPDPC: {
         traces
         some disj s1, s2: State | 
