@@ -437,7 +437,16 @@ pred PDPCAndOrgAgree[s: State] {
 }
 
 ----------- TO DO: Add event funs! -----------
-
+pred PDPCNotifsImpliesPDPCMoved {
+    all s: State |  
+        {
+            some s.next 
+            nNotifyAffected in (s.next).notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
+        } implies
+            {
+                PDPCRespondsToOrgIfOrgHadNotified[s, s.next]
+            }
+}
 
 pred OrgNotifsImpliesOrgMoved {
     all s: State |  
@@ -480,7 +489,7 @@ pred PDPCWillRespondWithinOneTick {
 
 
 
-pred ifOrgNotifiesPDPCDoesSoWithinFirstThreeSteps { 
+pred ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps { 
     // for well-formedness
     {some s: State | nOrgNotifiesPDPC in s.notifyStatus[Org]} implies
         {
@@ -491,7 +500,9 @@ pred ifOrgNotifiesPDPCDoesSoWithinFirstThreeSteps {
 }
 pred wellformed {
     OrgNotifsImpliesOrgMoved
-    ifOrgNotifiesPDPCDoesSoWithinFirstThreeSteps
+    PDPCNotifsImpliesPDPCMoved
+
+    ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps
     PDPCWillRespondWithinOneTick
 
     // don't think we need these after all, given that we can just talk about  obligations that get triggered and persist (and given how that's clearer)
@@ -661,6 +672,15 @@ test expect {
             }
 
     } for 4 State for {next is linear} is unsat
+
+    // TO DO: Add OrgNotifsToPDPCOnlyOnOneStateMax and to Affected
+
+    PDPCNotifsOnlyOnOneStateMax: {
+        traces implies 
+            #{s: State | 
+                nNotifyAffected in s.notifyStatus[PDPC] or 
+                nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]} <= 1
+    } for 5 State for {next is linear} is theorem
 
     // PDPCWillNotRespondToOrgBeforeOrgConsidersNotifyingPDPC: {
     //     traces  
