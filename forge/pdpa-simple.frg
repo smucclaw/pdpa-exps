@@ -241,11 +241,11 @@ pred finis[s: State] { // check if we're in a 'terminal' state
 pred someSubstantiveTransEnabled[pre: State] {
     enabledOrgPotentiallyNotifiesAffected[pre] or 
     enabledOrgPotentiallyNotifiesPDPC[pre] or 
-    enabledPostprocessOrgNotifPDPC[pre] or
-    enabledPostprocessOrgNotifiesAffected[pre] or
+    enabledCleanupOrgNotifPDPC[pre] or
+    enabledCleanupOrgNotifiesAffected[pre] or
 
     enabledPDPCRespondsToOrg[pre] or
-    enabledPostprocessPDPCRespondsToOrg[pre]
+    enabledCleanupPDPCRespondsToOrg[pre]
 }
 // TO DO: Chk / refactor
 pred stutter[pre: State, post: State] {
@@ -307,11 +307,11 @@ pred orgPotentiallyNotifiesPDPC[pre: State, post: State] {
     // TO DO: include oblig related state when get around to adding that
 }
 
-pred enabledPostprocessOrgNotifPDPC[pre: State] {
+pred enabledCleanupOrgNotifPDPC[pre: State] {
     nOrgNOTnotifyPDPC in pre.notifyStatus[Org] or nOrgNotifiesPDPC in pre.notifyStatus[Org]
 }
-pred postprocessOrgNotifiesPDPC[pre: State, post: State] {
-    enabledPostprocessOrgNotifPDPC[pre]
+pred cleanupOrgNotifiesPDPC[pre: State, post: State] {
+    enabledCleanupOrgNotifPDPC[pre]
 
     // Make sure the PDPC related notification flags not in post
     nOrgNotifiesPDPC not in post.notifyStatus[Org]
@@ -345,11 +345,11 @@ pred orgPotentiallyNotifiesAffected[pre: State, post: State] {
     // TO DO: include oblig related state when get around to adding that
 }
 
-pred enabledPostprocessOrgNotifiesAffected[pre: State] {
+pred enabledCleanupOrgNotifiesAffected[pre: State] {
     nNotifyAffected in pre.notifyStatus[Org] or nOrgNOTnotifyAffected in pre.notifyStatus[Org]
 }
-pred postprocessOrgNotifiesAffected[pre: State, post: State] {
-    enabledPostprocessOrgNotifiesAffected[pre]
+pred cleanupOrgNotifiesAffected[pre: State, post: State] {
+    enabledCleanupOrgNotifiesAffected[pre]
 
     nNotifyAffected not in post.notifyStatus[Org]
     nOrgNOTnotifyAffected not in post.notifyStatus[Org]
@@ -373,11 +373,11 @@ pred PDPCRespondsToOrgIfOrgHadNotified[pre: State, post: State] {
     // TO DO: Handle oblig triggering and exempting stuff based on whether PDPC says to or not to notify affected
 }
 
-pred enabledPostprocessPDPCRespondsToOrg[pre: State] {
+pred enabledCleanupPDPCRespondsToOrg[pre: State] {
     nNotifyAffected in pre.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in pre.notifyStatus[PDPC]
 }
-pred postprocessPDPCRespondsToOrg[pre: State, post: State] {
-    enabledPostprocessPDPCRespondsToOrg[pre]
+pred cleanupPDPCRespondsToOrg[pre: State, post: State] {
+    enabledCleanupPDPCRespondsToOrg[pre]
 
     nNotifyAffected not in post.notifyStatus[PDPC] 
     nPDPCSaysDoNotNotifyAffected not in post.notifyStatus[PDPC]
@@ -472,8 +472,6 @@ pred PDPCWillRespondWithinOneTick {
     // nOrgNotifiesPDPC in ((stNDBreach.next).next).notifyStatus[Org] => PDPCRespondsToOrgIfOrgHadNotified[(stNDBreach.next).next, ((stNDBreach.next).next).next]
 }
 
-
-
 pred ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps { 
     // for well-formedness
     {some s: State | nOrgNotifiesPDPC in s.notifyStatus[Org]} implies
@@ -528,13 +526,13 @@ pred traces {
     all s: State | {
         some s.next implies {
             orgPotentiallyNotifiesPDPC[s, s.next] or
-            postprocessOrgNotifiesPDPC[s, s.next] or
+            cleanupOrgNotifiesPDPC[s, s.next] or
             
             orgPotentiallyNotifiesAffected[s, s.next] or
-            postprocessOrgNotifiesAffected[s, s.next] or
+            cleanupOrgNotifiesAffected[s, s.next] or
 
             PDPCRespondsToOrgIfOrgHadNotified[s, s.next] or
-            postprocessPDPCRespondsToOrg[s, s.next]
+            cleanupPDPCRespondsToOrg[s, s.next]
             // or
             // toyStutter[s, s.next]
             // or
@@ -544,17 +542,6 @@ pred traces {
             }
     }
 }
-
-
-// run {
-//         traces
-//         some s: State |
-//             { 
-//                 nOrgNotifiesPDPC in (s.next).notifyStatus[Org] or nOrgNOTnotifyPDPC in (s.next).notifyStatus[Org]
-//                 not orgPotentiallyNotifiesPDPC[s, s.next]
-//             }
-
-// } for 4 State for {next is linear} 
 
 
 test expect {
