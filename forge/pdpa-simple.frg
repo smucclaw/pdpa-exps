@@ -298,18 +298,6 @@ pred orgPotentiallyNotifiesPDPC[pre: State, post: State] {
     nOrgNotifiesPDPC in post.notifyStatus[Org] or
     nOrgNOTnotifyPDPC in post.notifyStatus[Org]
     // We don't necessarily want to preserve what was in pre, b/c may want to clean up / remove notification(s) from before
-
-    // not orgPotentiallyNotifiesAffected[pre, post] => {
-    //     post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNotifiesPDPC or
-    //     post.notifyStatus[Org] = (pre.notifyStatus[Org] + nOrgNOTnotifyPDPC)
-    // }
-    // orgPotentiallyNotifiesAffected[pre, post] => {
-    //     post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNotifiesPDPC + nNotifyAffected or
-    //     post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNotifiesPDPC + nOrgNOTnotifyAffected or
-    //     post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNOTnotifyPDPC + nNotifyAffected or
-    //     post.notifyStatus[Org] = pre.notifyStatus[Org] + nOrgNOTnotifyPDPC + nOrgNOTnotifyAffected 
-    // }
-    // this alrdy encodes a frame condition as well
     // note tt we want it to be possible for org to inform affected at same time as they inform pdpc
 
     --- other frame conditions 
@@ -333,8 +321,6 @@ pred postprocessOrgNotifiesPDPC[pre: State, post: State] {
 
 pred enabledOrgPotentiallyNotifiesAffected[pre: State] {
     // 1. First time Org considering whether to notify affected / making this move wrt affected
-    // no {s: State | s in statesBefore[pre] and OrgPotentiallyNotifiesAffected[s, s.next]}
-    // I think the above is just super computationally intensive -- need to replace with something else!
     no preStatesWithPriorNotifn[Org, nNotifyAffected, pre]
     no preStatesWithPriorNotifn[Org, nOrgNOTnotifyAffected, pre]
 
@@ -365,7 +351,6 @@ pred enabledPostprocessOrgNotifiesAffected[pre: State] {
 pred postprocessOrgNotifiesAffected[pre: State, post: State] {
     enabledPostprocessOrgNotifiesAffected[pre]
 
-    // post.notifyStatus[Org] = pre.notifyStatus[Org] - nNotifyAffected - nOrgNOTnotifyAffected
     nNotifyAffected not in post.notifyStatus[Org]
     nOrgNOTnotifyAffected not in post.notifyStatus[Org]
 }
@@ -702,6 +687,36 @@ test expect {
                 nNotifyAffected in s.notifyStatus[PDPC] or 
                 nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]} <= 1
     } for 5 State for {next is linear} is theorem
+ 
+    // Suppose PDPC tells Org not to notify affected. It's still possible for Org to subsequently notify affected.
+    OrgCanStillNotifyEvenAfterPDPCSaysNotTo: {
+        traces
+        some s: State |
+            { 
+                nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]
+                some s.next
+                nNotifyAffected in (s.next).notifyStatus[Org] 
+            }
+    } for 4 State for {next is linear} is sat
+
+    // It's possible for Org to notify PDPC and notify affected, and for PDPC to __subsequently__ say NOT to notify
+    PDPCCanSayNotToNotifyEvenAfterOrgHasNotifiedAffected: {
+        traces
+        // s2 can be s1
+        some s1, s2: State |
+            { 
+                some preStatesWithPriorNotifn[Org, nOrgNotifiesPDPC, s1.(~next)] 
+                // org notifies pdpc before s1
+
+                nNotifyAffected in s1.notifyStatus[Org] 
+                // org notifies affected on s1
+
+                s2 in (s1  + s1.^next)                             
+                nPDPCSaysDoNotNotifyAffected in s2.notifyStatus[PDPC]
+                // pdpc says not to notify on either s1 or some state after
+            }
+    } for 4 State for {next is linear} is sat
+
 
     PDPCWillNotRespondToOrgBeforeOrgConsidersNotifyingPDPC: {
         traces  
@@ -742,16 +757,3 @@ test expect {
 run { 
      traces
     } for exactly 4 State for {next is linear}
-
-    
-
-// 
-
-// pred traces {
-//     init 
-//     initialToNotifiableDB
-// }
-
-// run {
-//     traces
-// } for 5 Int for {next is linear}
