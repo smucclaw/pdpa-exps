@@ -210,7 +210,9 @@ test expect {
     ------- Obligation mechanics
 
     /*TO DO: 
-
+    1. Once an obligation is introduced / activated, it will stay in the activeObligs field till it gets checked / till we get to the associated deadln state (in a more complicated specification, this would be a disjunction: e.g., could also be till it gets waived, or...)
+    2. Obligations are checked only on the states we want to check them at 
+    3. When obligations are violated, we transit to the associated breach state
     */
 
     --- tests of the legislation / 'system'
