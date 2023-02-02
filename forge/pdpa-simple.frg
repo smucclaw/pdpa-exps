@@ -197,6 +197,10 @@ fun betweenInclLeft[s1: State, s2: State]: set State {
     ( s1.^next & s2.^(~next) ) + s1
 }
 
+fun betweenInclBoth[s1: State, s2: State]: set State {
+    ( s1.^next & s2.^(~next) ) + s1 + s2
+}
+
 
 -- TO DO: do the auxiliary relatiosn thing from https://haslab.github.io/formal-software-design/modeling-tips/index.html#improved-visualisation-with-auxiliary-relations to make it clearer what's hpapening!
 -- OrgViolatesLaw
@@ -633,12 +637,29 @@ pred ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps {
             // to allow for possibility of notifying PDPC but missing dateline (i.e., notifying *only after* the deadln)
         } 
 }
+
+pred activeObligsFieldWellformed{
+    let ONPDPCActivPre = {s: State | activateOblOrgNotifyPDPC[ONPDPCActivPre, ONPDPCActivPre.next]} |
+    let ONPDPCCheckPre = {s: State | checkOblOrgNotifyPDPC[ONPDPCCheckPre, ONPDPCCheckPre.next]} | 
+        (some ONPDPCActivPre and some ONPDPCCheckPre) =>
+            { 
+                all s: State | {
+                    s in betweenInclBoth[ONPDPCActivPre, ONPDPCCheckPre] => 
+                    oblOrgToNotifyPDPC in s.activeObligs
+                }
+            }
+}
+
 pred wellformed {
+    -- notification mechanics wellformed
     OrgNotifsImpliesOrgMoved
     PDPCNotifsImpliesPDPCMoved
 
     ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps
     PDPCWillRespondWithinOneTick
+
+    -- oblig mechanics wellformed
+    activeObligsFieldWellformed
 }
 
 pred checkIfAllDone {
