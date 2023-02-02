@@ -644,7 +644,7 @@ pred activeObligsFieldWellformed{
         (some ONPDPCActivPre and some ONPDPCCheckPre) =>
             { 
                 all s: State | {
-                    s in betweenInclBoth[ONPDPCActivPre, ONPDPCCheckPre] => 
+                    s in betweenInclBoth[ONPDPCActivPre, ONPDPCCheckPre] <=> 
                     oblOrgToNotifyPDPC in s.activeObligs
                 }
             }
