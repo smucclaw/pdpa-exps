@@ -632,7 +632,7 @@ pred wellformed {
     OrgNotifsImpliesOrgMoved
     PDPCNotifsImpliesPDPCMoved
 
-    // ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps
+    ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps
     PDPCWillRespondWithinOneTick
 }
 
