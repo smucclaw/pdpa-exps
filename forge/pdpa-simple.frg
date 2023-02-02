@@ -256,6 +256,9 @@ pred finis[s: State] { // check if we're in a 'terminal' state
     s = stOrgBrokeLaw --- stOrgNoLawBroken = state that we'll move to when we're done triggering and checking all the possible obligations and Org did not break law
 }
 
+/* TO DO
+1. Look into whether shld add enabledOrgDoesNotNotifyAffectedHere and enabledOrgDoesNotNotifyPDPCHere. I want to say no b/c those woudl be true even if we do want to stutter, but not sure
+*/
 pred someSubstantiveTransEnabled[pre: State] {
     -- org notification transitions
     enabledOrgNotifiesAffected[pre] or 
@@ -275,7 +278,9 @@ pred someSubstantiveTransEnabled[pre: State] {
     enabledActivateOblOrgNotifyPDPC[pre] or
     enabledCheckOblOrgNotifyPDPC[pre]
 }
-// TO DO: Chk / refactor
+// 
+/*
+TO DO: Chk / refactor*/
 pred stutter[pre: State, post: State] {
     finis[pre] or { not someSubstantiveTransEnabled[pre] }
 
@@ -401,7 +406,7 @@ pred orgDoesNotNotifyAffectedHere[pre: State, post: State] {
 }
 
 pred orgHasNotifiedAffected[s: State] {
-    nNotifyAffected in s.notifyStatus[Org] //or nOrgNOTnotifyAffected in s.notifyStatus[Org]
+    nNotifyAffected in s.notifyStatus[Org]
 }
 pred enabledCleanupOrgNotifiesAffected[pre: State] {
     orgHasNotifiedAffected[pre]   
@@ -410,7 +415,6 @@ pred cleanupOrgNotifiesAffected[pre: State, post: State] {
     enabledCleanupOrgNotifiesAffected[pre]
 
     nNotifyAffected not in post.notifyStatus[Org]
-    // nOrgNOTnotifyAffected not in post.notifyStatus[Org]
 }
 
 
@@ -481,7 +485,8 @@ pred activateOblOrgNotifyPDPC[pre: State, post: State] {
         some twoStatesFromNow =>     
         { 
             checkOblOrgNotifyPDPC[twoStatesFromNow, twoStatesFromNow.next]
-            (oblOrgToNotifyPDPC.obligCheck) not in ({s: State | reachable[s, pre, next]} - twoStatesFromNow)
+            // (oblOrgToNotifyPDPC.obligCheck) not in ({s: State | reachable[s, pre, next]} - twoStatesFromNow)
+            // TO THINK ABT: actually i don't think we need the above cos next is linear will make sure thre's no cycles, and checkOblOrgNotifyPDPC will already require that twoStatesFromNow = oblOrgToNotifyPDPC.obligCheck = the deadln state
         }
     
 }
@@ -572,7 +577,7 @@ pred OrgNotifsImpliesOrgMoved {
         {
             s in statesAfterIncl[stNDBreach]
             some s.next 
-            nOrgNotifiesPDPC in (s.next).notifyStatus[Org] // or nOrgNOTnotifyPDPC in (s.next).notifyStatus[Org]
+            nOrgNotifiesPDPC in (s.next).notifyStatus[Org] 
         } implies
             {
                 orgNotifiesPDPC[s, s.next]
