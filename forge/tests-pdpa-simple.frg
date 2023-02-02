@@ -52,62 +52,61 @@ test expect {
             }
     } for {next is linear} is sat
 
-    // TO DO: Need to reformulate
-    // PossibleOrgNotifyAffectedBeforeNOTNotifyingPDPC: {
-    //     traces
-    //     some disj s1, s2: State | 
-    //         { 
-    //             s2 in s1.^next
-    //             nNotifyAffected in s1.notifyStatus[Org]
-    //             nOrgNotifyPDPC not in s2.notifyStatus[Org]
-    //         }
-    // } for {next is linear} is sat
-
-    // PossibleOrgNOTNotifyAffectedBeforeNotifyingPDPC: {
-    //     traces
-    //     some disj s1, s2: State | 
-    //         { 
-    //             s2 in s1.^next
-    //             nOrgNOTnotifyAffected in s1.notifyStatus[Org]
-    //             nOrgNotifiesPDPC in s2.notifyStatus[Org]
-    //         }
-    // } for {next is linear} is sat
-
-    // PossibleOrgNOTNotifyAffectedBeforeNOTNotifyingPDPC: {
-    //     traces
-    //     some disj s1, s2: State | 
-    //         { 
-    //             s2 in s1.^next
-    //             nOrgNOTnotifyAffected in s1.notifyStatus[Org]
-    //             nOrgNOTnotifyPDPC in s2.notifyStatus[Org]
-    //         }
-    // } for {next is linear} is sat
+    PossibleOrgNotifyAffectedButNeverNotifyPDPC: {
+        traces
+        some s: State | 
+            { 
+                s in statesAfterIncl[stNDBreach]                
+                nNotifyAffected in s.notifyStatus[Org]
+            }
+        no {s: State | s in statesAfterIncl[stNDBreach] and orgHasNotifiedPDPC[s]}
+    } for {next is linear} is sat
 
 
-    PDPCWillNotMakeBothNotifications: {
-        traces implies #{s: State | nNotifyAffected in s.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC] } <= 1      
+    PossibleOrgNotifyPDPCButNeverNotifyAffected: {
+        traces
+        some s: State | 
+            { 
+                s in statesAfterIncl[stNDBreach]   
+                orgHasNotifiedPDPC[s] 
+            }
+        no {s: State | s in statesAfterIncl[stNDBreach] and nNotifyAffected in s.notifyStatus[Org]}
+    } for {next is linear} is sat
+
+    PDPCWillNotMakeMoreThanOneNotificationInATrace: {
+        traces implies 
+            #{s: State | 
+                s in statesAfterIncl[stNDBreach] and
+                (nNotifyAffected in s.notifyStatus[PDPC] or 
+                nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]) } <= 1      
     } for 3 State for {next is linear} is theorem
     -- TO DO: check with higher number of states once we fix the stutter transitions
 
     PossibleForPDPCToSayNotify: {
         traces
-        some {s: State | nNotifyAffected in s.notifyStatus[PDPC]}
+        some {s: State | s in statesAfterIncl[stNDBreach] and nNotifyAffected in s.notifyStatus[PDPC]}
     } for 4 State for {next is linear} is sat
    
     PossibleForPDPCToImposeGagOrder: {
         traces
-        some {s: State | nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]}
+        some {s: State | s in statesAfterIncl[stNDBreach] and nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]}
     } for 4 State for {next is linear} is sat
 
     PDPCWillNotRespondToOrgAtSameTimeThatOrgConsidersNotifyingPDPC: {
         traces  
-        some s: State | PDPCRespondsToOrgIfOrgHadNotified[s, s.next] and orgNotifiesPDPC[s, s.next]
+        some s: State | 
+        {
+            s in statesAfterIncl[stNDBreach]
+            PDPCRespondsToOrgIfOrgHadNotified[s, s.next]  
+            orgNotifiesPDPC[s, s.next]
+        }
     } for {next is linear} is unsat
 
     OrgNotifyingPDPCIsDueToMovePred: {
         traces
         some s: State |
             { 
+                s in statesAfterIncl[stNDBreach]
                 nOrgNotifiesPDPC in (s.next).notifyStatus[Org] // or nOrgNOTnotifyPDPC in (s.next).notifyStatus[Org]
                 not orgNotifiesPDPC[s, s.next]
             }
@@ -117,37 +116,38 @@ test expect {
         traces
         some s: State |
             { 
-                nNotifyAffected in (s.next).notifyStatus[Org] // or nOrgNOTnotifyAffected in (s.next).notifyStatus[Org]
+                s in statesAfterIncl[stNDBreach]
+                nNotifyAffected in (s.next).notifyStatus[Org] 
 
                 not orgNotifiesAffected[s, s.next]
             }
     } for 4 State for {next is linear} is unsat
 
-    // or nOrgNOTnotifyAffected in s.notifyStatus[Org]
     OrgNotifsToAffectedOnlyOnOneStateMax: {
         traces implies 
-            #{s: State | nNotifyAffected in s.notifyStatus[Org]} <= 1
+            #{s: State | s in statesAfterIncl[stNDBreach] and nNotifyAffected in s.notifyStatus[Org]} <= 1
     } for 5 State for {next is linear} is theorem
 
-    // clean up occurs exactly once
-    CleanupOrgNotifiesPDPExactlyOnce: {
+    // clean up occurs once, max (max, b/c org may not notify PDPC)
+    CleanupOrgNotifiesPDPCOnceMax: {
         traces implies 
             #{s: State | 
-                some s.next and cleanupOrgNotifiesPDPC[s, s.next]} <= 1
+                s in statesAfterIncl[stNDBreach] and
+                some s.next and
+                cleanupOrgNotifiesPDPC[s, s.next]} <= 1
     } for 5 State for {next is linear} is theorem
 
-    //  or nOrgNOTnotifyPDPC in s.notifyStatus[Org]
     OrgNotifsToPDPCOnlyOnOneStateMax: {
         traces implies 
-            #{s: State | 
+            #{s: State | s in statesAfterIncl[stNDBreach] and
                 nOrgNotifiesPDPC in s.notifyStatus[Org]} <= 1
     } for 5 State for {next is linear} is theorem
 
     PDPCNotifsOnlyOnOneStateMax: {
         traces implies 
-            #{s: State | 
-                nNotifyAffected in s.notifyStatus[PDPC] or 
-                nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]} <= 1
+            #{s: State | s in statesAfterIncl[stNDBreach] and
+                (nNotifyAffected in s.notifyStatus[PDPC] or 
+                nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC])} <= 1
     } for 5 State for {next is linear} is theorem
  
     // Suppose PDPC tells Org not to notify affected. It's still possible for Org to subsequently notify affected.
@@ -155,6 +155,7 @@ test expect {
         traces
         some s: State |
             { 
+                s in statesAfterIncl[stNDBreach]
                 nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]
                 some s.next
                 nNotifyAffected in (s.next).notifyStatus[Org] 
@@ -167,13 +168,15 @@ test expect {
         // s2 can be s1
         some s1, s2: State |
             { 
+                s1 in statesAfterIncl[stNDBreach]
+                s2 in (s1  + s1.^next)                             
+
                 some preStatesWithPriorNotifn[Org, nOrgNotifiesPDPC, s1.(~next)] 
                 // org notifies pdpc before s1
 
                 nNotifyAffected in s1.notifyStatus[Org] 
                 // org notifies affected on s1
 
-                s2 in (s1  + s1.^next)                             
                 nPDPCSaysDoNotNotifyAffected in s2.notifyStatus[PDPC]
                 // pdpc says not to notify on either s1 or some state after
             }
@@ -184,11 +187,11 @@ test expect {
         traces  
         some disj s1, s2: State | 
             {
+                s1 in statesAfterIncl[stNDBreach]   
                 s2 in s1.^next
                 nNotifyAffected in s1.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s1.notifyStatus[PDPC]
                 
                 nOrgNotifiesPDPC in s2.notifyStatus[Org] 
-                // or nOrgNOTnotifyPDPC in s2.notifyStatus[Org]
                 // this obviously assumes that the org move pred will make one of these two moves
             }
     } for 3 State for {next is linear} is unsat
