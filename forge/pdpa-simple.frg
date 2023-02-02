@@ -116,8 +116,10 @@ one sig PDPC, Org extends Actor {}
 */
 
 abstract sig Notification {}
-one sig nNotifyAffected, nOrgNOTnotifyAffected, nPDPCSaysDoNotNotifyAffected extends Notification {}
-one sig nOrgNotifiesPDPC, nOrgNOTnotifyPDPC extends Notification {}
+// nOrgNOTnotifyAffected
+// nOrgNOTnotifyPDPC
+one sig nNotifyAffected, nPDPCSaysDoNotNotifyAffected extends Notification {}
+one sig nOrgNotifiesPDPC extends Notification {}
 -- strictly speaking, nNotifyAffected has two meanings here: for the PDPC, it means 'Org *must* notify affected', whereas for the org, it will be: Org has notified / is now notifying affected
 
 /*
@@ -180,6 +182,10 @@ one sig oblOrgToNotifyPDPC extends Obligation {}
 ------------------------ UTILITY FUNCS ---------------------------------------------------
 fun statesBefore[s: State]: set State {
     s.^(~next)
+}
+
+fun statesAfterIncl[s: State]: set State {
+    s + s.^next
 }
 
 -- states that r bet s1 and s2, not inclusive
@@ -246,13 +252,18 @@ TO DO
 Right now im thinking of handling terminal states via extensions of state sig
 */
 pred finis[s: State] { // check if we're in a 'terminal' state
-    s = stOrgBrokeLaw or s = stOrgNoLawBroken --- stOrgNoLawBroken = state that we'll move to when we're done triggering and checking all the possible obligations and Org did not break law
+    // TO DO: uncomment this once we're done implementing the logic s = stOrgNoLawBroken or 
+    s = stOrgBrokeLaw --- stOrgNoLawBroken = state that we'll move to when we're done triggering and checking all the possible obligations and Org did not break law
 }
 
 pred someSubstantiveTransEnabled[pre: State] {
     -- org notification transitions
-    enabledOrgPotentiallyNotifiesAffected[pre] or 
-    enabledOrgPotentiallyNotifiesPDPC[pre] or 
+    enabledOrgNotifiesAffected[pre] or 
+    // enabledOrgDoesNotNotifyAffectedHere[pre] or
+
+    enabledOrgNotifiesPDPC[pre] or 
+    // enabledOrgDoesNotNotifyPDPCHere[pre] or
+    
     enabledCleanupOrgNotifPDPC[pre] or
     enabledCleanupOrgNotifiesAffected[pre] or
 
@@ -294,26 +305,35 @@ fun preStatesWithPriorNotifn (actr: Actor, notifn: Notification, pre: State): se
     {s: State | s in (statesBefore[pre] + pre) and notifn in s.notifyStatus[actr]}
 }
 
--- IMPT: orgPotentiallyNotifiesPDPC and orgPotentiallyNotifiesAffected are NOT 'happy path / what a law-abiding Org would do' preds. 
+-- IMPT: orgNotifiesPDPC and orgNotifiesAffected are NOT 'happy path / what a law-abiding Org would do' preds. 
 -- Think of them instead as 'what it minimally takes for the state transitions to be wellformed / for the specification to work' preds
 
-pred enabledOrgPotentiallyNotifiesPDPC[pre: State] {
+pred enabledOrgNotifiesPDPC[pre: State] {
     // 1. Org has not made this move (potentially notifying PDPC) in pre or before
     no preStatesWithPriorNotifn[Org, nOrgNotifiesPDPC, pre]
-    no preStatesWithPriorNotifn[Org, nOrgNOTnotifyPDPC, pre]
+    // no preStatesWithPriorNotifn[Org, nOrgNOTnotifyPDPC, pre]
 
     // 3. Require that PDPC not have somehow told Org to notify or not notify ahead of time
     // This rules out, e.g., the edge case where PDPC somehow pre-emptively tells the org not to notify affected people about any possible issues arising from some likely but not yet confirmed notifiable data breach
     no {s: State | s in (statesBefore[pre] + pre) and some s.notifyStatus[PDPC]}
 }
 
-pred orgPotentiallyNotifiesPDPC[pre: State, post: State] {
-    enabledOrgPotentiallyNotifiesPDPC[pre]
+
+// pred enabledOrgDoesNotNotifyPDPCHere[pre: State] {
+//     not (some pre.next and orgNotifiesPDPC[pre, pre.next])
+// }
+pred orgDoesNotNotifyPDPCHere[pre: State, post: State] {
+    // enabledOrgDoesNotNotifyPDPCHere[pre]
+    
+    nOrgNotifiesPDPC not in post.notifyStatus[Org]
+}
+
+pred orgNotifiesPDPC[pre: State, post: State] {
+    enabledOrgNotifiesPDPC[pre]
     
     -- ACTIONS
-    // 1. Org either notifies PDPC or does not 
-    nOrgNotifiesPDPC in post.notifyStatus[Org] or
-    nOrgNOTnotifyPDPC in post.notifyStatus[Org]
+    nOrgNotifiesPDPC in post.notifyStatus[Org]
+    // nOrgNOTnotifyPDPC in post.notifyStatus[Org]
     // We don't necessarily want to preserve what was in pre, b/c may want to clean up / remove notification(s) from before
     // note tt we want it to be possible for org to inform affected at same time as they inform pdpc
 
@@ -327,37 +347,40 @@ pred orgPotentiallyNotifiesPDPC[pre: State, post: State] {
     // TO DO: include oblig related state when get around to adding that
 }
 
-// TO DO: Actually, I suspect I have to ALSO require cleanup
+
+pred orgHasNotifiedPDPC[s: State] {
+    nOrgNotifiesPDPC in s.notifyStatus[Org]
+}
 pred enabledCleanupOrgNotifPDPC[pre: State] {
-    nOrgNOTnotifyPDPC in pre.notifyStatus[Org] or nOrgNotifiesPDPC in pre.notifyStatus[Org]
+    orgHasNotifiedPDPC[pre]
 }
 pred cleanupOrgNotifiesPDPC[pre: State, post: State] {
     enabledCleanupOrgNotifPDPC[pre]
 
     // Make sure the PDPC related notification flags not in post
     nOrgNotifiesPDPC not in post.notifyStatus[Org]
-    nOrgNOTnotifyPDPC not in post.notifyStatus[Org]
+    // nOrgNOTnotifyPDPC not in post.notifyStatus[Org]
 }
 
 
-pred enabledOrgPotentiallyNotifiesAffected[pre: State] {
+pred enabledOrgNotifiesAffected[pre: State] {
     // 1. First time Org considering whether to notify affected / making this move wrt affected
     no preStatesWithPriorNotifn[Org, nNotifyAffected, pre]
-    no preStatesWithPriorNotifn[Org, nOrgNOTnotifyAffected, pre]
+    // no preStatesWithPriorNotifn[Org, nOrgNOTnotifyAffected, pre]
 
     /* NOT requiring tt 
         (i) Org have informed PDPC before this, 
         or 
         (ii)  PDPC not have told Org not to notify
-    because orgPotentiallyNotifiesAffected isn't supposed to be a 'happy path only' predicate 
-    orgPotentiallyNotifiesAffected is more like a 'what it takes for the state transition to be well-formed' predicate 
+    because orgNotifiesAffected isn't supposed to be a 'happy path only' predicate 
+    orgNotifiesAffected is more like a 'what it takes for the state transition to be well-formed' predicate 
     */
 }
-pred orgPotentiallyNotifiesAffected[pre: State, post: State] {
-    enabledOrgPotentiallyNotifiesAffected[pre]
+pred orgNotifiesAffected[pre: State, post: State] {
+    enabledOrgNotifiesAffected[pre]
 
     -- ACTIONS
-    nOrgNOTnotifyAffected in post.notifyStatus[Org] or 
+    // nOrgNOTnotifyAffected in post.notifyStatus[Org] or 
     nNotifyAffected in post.notifyStatus[Org]
 
     some post.next => cleanupOrgNotifiesAffected[post, post.next]
@@ -368,14 +391,26 @@ pred orgPotentiallyNotifiesAffected[pre: State, post: State] {
     // TO DO: include oblig related state when get around to adding that
 }
 
+pred enabledOrgDoesNotNotifyAffectedHere[pre: State] {
+    not (some pre.next and orgNotifiesAffected[pre, pre.next])
+}
+pred orgDoesNotNotifyAffectedHere[pre: State, post: State] {
+    // enabledOrgDoesNotNotifyAffectedHere[pre]
+
+    nNotifyAffected not in post.notifyStatus[Org]   
+}
+
+pred orgHasNotifiedAffected[s: State] {
+    nNotifyAffected in s.notifyStatus[Org] //or nOrgNOTnotifyAffected in s.notifyStatus[Org]
+}
 pred enabledCleanupOrgNotifiesAffected[pre: State] {
-    nNotifyAffected in pre.notifyStatus[Org] or nOrgNOTnotifyAffected in pre.notifyStatus[Org]
+    orgHasNotifiedAffected[pre]   
 }
 pred cleanupOrgNotifiesAffected[pre: State, post: State] {
     enabledCleanupOrgNotifiesAffected[pre]
 
     nNotifyAffected not in post.notifyStatus[Org]
-    nOrgNOTnotifyAffected not in post.notifyStatus[Org]
+    // nOrgNOTnotifyAffected not in post.notifyStatus[Org]
 }
 
 
@@ -398,8 +433,11 @@ pred PDPCRespondsToOrgIfOrgHadNotified[pre: State, post: State] {
     // TO DO: Handle oblig triggering and exempting stuff based on whether PDPC says to or not to notify affected
 }
 
+pred PDPCResponded[s: State] {
+    nNotifyAffected in s.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]
+}
 pred enabledCleanupPDPCRespondsToOrg[pre: State] {
-    nNotifyAffected in pre.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in pre.notifyStatus[PDPC]
+    PDPCResponded[pre]
 }
 pred cleanupPDPCRespondsToOrg[pre: State, post: State] {
     enabledCleanupPDPCRespondsToOrg[pre]
@@ -519,6 +557,7 @@ pred AtOrgNotifPDPCDedlnStateImpliesCheckingOblig {
 pred PDPCNotifsImpliesPDPCMoved {
     all s: State |  
         {
+            s in statesAfterIncl[stNDBreach]
             some s.next 
             nNotifyAffected in (s.next).notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
         } implies
@@ -528,59 +567,72 @@ pred PDPCNotifsImpliesPDPCMoved {
 }
 
 pred OrgNotifsImpliesOrgMoved {
+
     all s: State |  
         {
+            s in statesAfterIncl[stNDBreach]
             some s.next 
-            nOrgNotifiesPDPC in (s.next).notifyStatus[Org] or nOrgNOTnotifyPDPC in (s.next).notifyStatus[Org]
+            nOrgNotifiesPDPC in (s.next).notifyStatus[Org] // or nOrgNOTnotifyPDPC in (s.next).notifyStatus[Org]
         } implies
             {
-                orgPotentiallyNotifiesPDPC[s, s.next]
+                orgNotifiesPDPC[s, s.next]
+            }
+    all s: State |  
+        {
+            s in statesAfterIncl[stNDBreach]
+            some s.next 
+            nOrgNotifiesPDPC not in (s.next).notifyStatus[Org] 
+        } implies
+            {
+                orgDoesNotNotifyPDPCHere[s, s.next]
             }
 
     all s: State |  
         {
+            s in statesAfterIncl[stNDBreach]
             some s.next 
-            nOrgNOTnotifyAffected in (s.next).notifyStatus[Org] or nNotifyAffected in (s.next).notifyStatus[Org]
+            // nOrgNOTnotifyAffected in (s.next).notifyStatus[Org] or 
+            nNotifyAffected in (s.next).notifyStatus[Org]
         } implies
             {
-                orgPotentiallyNotifiesAffected[s, s.next]
+                orgNotifiesAffected[s, s.next]
             }
+    all s: State |  
+        {
+            s in statesAfterIncl[stNDBreach]
+            some s.next 
+            nNotifyAffected not in (s.next).notifyStatus[Org] 
+        } implies
+            {
+                orgDoesNotNotifyAffectedHere[s, s.next]
+            }
+
 }
 
 
 
--- helper pred
-pred PDPCRespondsOnThisState[s: State] {
-    nNotifyAffected in s.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]
-}
 
 pred PDPCWillRespondWithinOneTick {
-    // [Simplifying modelling assumption] a 'non-starvation' property of sorts for PDPC: PDPC will always respond to Org's notification within 1 tick, if Org notifies PDPC in one of the first TWO steps
-    all s: State - stNDBreach | 
-        { 
-            nOrgNotifiesPDPC in s.notifyStatus[Org] =>
-                    PDPCRespondsToOrgIfOrgHadNotified[s, s.next] 
-        }
-    // nOrgNotifiesPDPC in (stNDBreach.next).notifyStatus[Org] => PDPCRespondsToOrgIfOrgHadNotified[stNDBreach.next, (stNDBreach.next).next]
-
-    // nOrgNotifiesPDPC in ((stNDBreach.next).next).notifyStatus[Org] => PDPCRespondsToOrgIfOrgHadNotified[(stNDBreach.next).next, ((stNDBreach.next).next).next]
+    // [Simplifying modelling assumption] a 'non-starvation' property of sorts for PDPC: PDPC will always respond to Org's notification within 1 tick
+    all s: State | (  s in statesAfterIncl[stNDBreach] and orgHasNotifiedPDPC[s] ) => PDPCRespondsToOrgIfOrgHadNotified[s, s.next] 
 }
 
 pred ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps { 
-    // for well-formedness
+    // for well-formedness / modelling convenience; in particular, to not have traces that are unnecessarily long
     // Within first *3* steps presupposes that deadline is in 2 steps (i.e., is at ((stNDBreach.next).next )
-    {some s: State | nOrgNotifiesPDPC in s.notifyStatus[Org]} implies
+    (some {s: State | s in (stNDBreach + stNDBreach.^next) and orgHasNotifiedPDPC[s]}) implies
         {
-            nOrgNotifiesPDPC in (stNDBreach.next).notifyStatus[Org] or 
-            nOrgNotifiesPDPC in ((stNDBreach.next).next).notifyStatus[Org] or
-            nOrgNotifiesPDPC in (((stNDBreach.next).next).next).notifyStatus[Org] // to allow for possibility of notifying PDPC but missing dateline (i.e., notifying *only after* the deadln)
+            orgHasNotifiedPDPC[stNDBreach.next] or 
+            orgHasNotifiedPDPC[((stNDBreach.next).next)] or 
+            orgHasNotifiedPDPC[(((stNDBreach.next).next).next)]
+            // to allow for possibility of notifying PDPC but missing dateline (i.e., notifying *only after* the deadln)
         } 
 }
 pred wellformed {
     OrgNotifsImpliesOrgMoved
     PDPCNotifsImpliesPDPCMoved
 
-    ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps
+    // ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps
     PDPCWillRespondWithinOneTick
 }
 
@@ -597,16 +649,24 @@ pred toyStutter[pre: State, post: State] {
     pre.notifyStatus = post.notifyStatus
     
 }
-pred transitn[pre: State, post: State] {
-    updateOutstandingObligs[pre, post] // TO DO
 
+pred enabledTransitn[pre: State] { 
+    // what is required for a substantive transition to occur
+    not finis[pre]
+}
+pred transitn[pre: State, post: State] {
+    enabledTransitn[pre]
+    
+    updateOutstandingObligs[pre, post] // TO DO
     { 
-        orgPotentiallyNotifiesPDPC[pre, post] or
+        orgNotifiesPDPC[pre, post] or
+        orgDoesNotNotifyPDPCHere[pre, post] or
         // cleanupOrgNotifiesPDPC[pre, post] or
 
         // to think abt: is there any value to having states that do nothing but clean up some prev event?
-        orgPotentiallyNotifiesAffected[pre, post] or
-        // cleanupOrgNotifiesAffected[pre, post] or
+        orgNotifiesAffected[pre, post] or
+        orgDoesNotNotifyAffectedHere[pre, post] or
+        cleanupOrgNotifiesAffected[pre, post] or
 
         PDPCRespondsToOrgIfOrgHadNotified[pre, post] or
         // cleanupPDPCRespondsToOrg[pre, post] or
@@ -632,6 +692,16 @@ pred traces {
     }
 }
 
+
+run {
+
+    traces 
+    no {s: State | s in statesAfterIncl[stNDBreach] and orgHasNotifiedPDPC[s]}
+    // not orgHasNotifiedPDPC[stNDBreach]
+    // not orgHasNotifiedPDPC[stNDBreach.next]
+    // not orgHasNotifiedPDPC[(stNDBreach.next).next]
+    // not orgHasNotifiedPDPC[((stNDBreach.next).next).next]
+}  for 4 State for {next is linear}     
 
 // run { 
 //      traces
