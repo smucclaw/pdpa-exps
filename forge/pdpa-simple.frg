@@ -697,17 +697,6 @@ pred traces {
     }
 }
 
-
-run {
-
-    traces 
-    no {s: State | s in statesAfterIncl[stNDBreach] and orgHasNotifiedPDPC[s]}
-    // not orgHasNotifiedPDPC[stNDBreach]
-    // not orgHasNotifiedPDPC[stNDBreach.next]
-    // not orgHasNotifiedPDPC[(stNDBreach.next).next]
-    // not orgHasNotifiedPDPC[((stNDBreach.next).next).next]
-}  for 4 State for {next is linear}     
-
 // run { 
 //      traces
 //     } for exactly 4 State for {next is linear}
