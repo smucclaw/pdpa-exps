@@ -1,99 +1,6 @@
 #lang forge
 
 option verbose 2
-/*
-TO DOs: 
-=======
-* do we need to worry about the case where we don't have enough states to get to all the check oblig transition preds?
-
-
-Ideas: 
-
-
-
--1. Think more about how to model obligation
-I think it *is* impt to be able to ask, not just whether it is __possible__ for org to notify affected before being told by PDPA not to do it, but also whether there is a scenario where the org is __required__ to notify the affected before subsequently being told that they must not notify.
-
-OK but how to talk about obligation? 
-
-Maybe:
-
-* the DSL will translate obligation-talk (obligations should be one of the key domain concepts) to constraints that check, at the relevant dedlns (which can be based on time or based on other trigger events), whether the obligation has been met, and that transit to sanctions otherwise
-* then when we need to check whether some actor is __obligated / required__ to do X by that dedln (i.e., whether X is an obligation), we can just use something like: is there a next state S' such that, if A does not do X by the dedln state, then A will be sanctioned in S' (in this use case, will move to OrgBrokeLaw state in S' / S' = OrgBrokeLaw)
-* This would allow us to ask about obligations in our queries. And we'd be able to use the auxiliary relation trick to keep track in the visualizer of when specific obligations have been fulfilled or violated
-
-Maybe the way to think about how to formulate the query, v2:
-
-* the more general, fundamental principle here might be some sort of 'ought implies can' principle: the requirements / legislation should be such that parties can feasibly comply with them. 
-    In particular --- and this would be an especially egregious violation of this principle --- we shouldn't have laws where you can end up breaking the law *even though the actions you took were ones that, in light of the info you had at the time, you might be reasonably expected to take in order to comply with the law*. (not saying the simpler 'had to take' b/c might quibble that the way to avoid possible race conditions is to ask the pdpc first before acting)
-
-* So the queries that the above thought would suggest is: 
-    [More general] Is it possible (is there a trace) where Org ends up breaking the law *even though Org's actions would have been permissible in light of the info Org had the time of said actions (i.e., Org's acitons in those states would not have triggered a transition to a sanction in the state where we check tt the operative obligations have been met, if we kept the other factors the same)*?
-    [Special case of the above] Is it possible (is there a trace) where Org ends up breaking the law *even though Org's actions would not only have been permissible, but in fact be what might be reasonably taken to be required to comply with the law, in light of the info Org had the time of said actions*?
-
-These can be turned into properties in obvious ways, properties that can be checked for unsatisfiability.
-
-What I like about this way of framing things:
-    * feels like this does a better job of cutting the normative stuff here at its joints: that more general query seems like something we do want to ask about all legislation / contracts in general
-
-----
-
-Another related thought: maybe it is better to say something like 'declare start of obligation' + 'checkIfObligationFulfilled[state after post]` in the transition predicate for the state where the obligation can be performed, so as to be able to model obligations that extend over a particular temporal duration.
-Look at how Symboleo does this!!!
-
-
-
-
-
-0. Fix / check OrgNotifyAffectedIsForever and PDPCNotifyDecisionIsForever (write some examples / property tests)
-1. Probably call State 'Time' instead of State
-2. Experiment with putting the `next` field in State/time instead of the one sig Trace
-3. Do the events / auxiliary relations thing from https://haslab.github.io/formal-software-design/modeling-tips/index.html#improved-visualisation-with-auxiliary-relations to make it clearer what transitions are taking place when!
-4. Think more abt how i'm structuring the specification, esp. the traces stuff
-5. Add more tests of the specification
-6. Write up some tests of the system / properties + some run queries
-7. Docs: Write up some docs; Collate simplifying / modelling choices / assumptions somewhere 
-8. Do the temporal mode version
-
-----------------------------------------
-Legislation: https://sso.agc.gov.sg/Act/PDPA2012?ProvIds=pr3-,pr4-,pr26-,pr26A-,pr26B-,pr26C-,pr26D-
-
-TO DO: Try the  Ray Reiter style of modelling as well! See Jackson Software Abstractions pg 197+
-
-Assumptions
------------
-* Deadline for checking whether oblig notified PDPC is in *2* steps (i.e., is at ((stNDBreach.next).next ); if haven't satisfied oblig by that state, will move to breach state
-
-
-Notes re modelling approach
----------------------------
-
-OK now that I've thought more about it, mutual exclusion is probably not the best analogy.
-* Maybe one important difference is that in this context, the PDPC's decision always takes precedence over Org's, and so the usual, fairer solutions to synchronization won't really apply here. Also, it really dos not matter that PDPC can be in the CS at same time as Org, if PDPC always ends up making the same decision as Org re whether to notify.
-* (Another, less impt difference is that here, we are assuming that once either PDPC or the Org gets into the CS --- i.e., once they decide to notify --- they don't ever leave.)
-
-
-
-Notes re law
---------------
-Re 
-> on or after notifying the Commission under subsection (1), the organisation must also notify each affected individual affected by a notifiable data breach mentioned in section 26B(1)(a) in any manner that is reasonable in the circumstances.
-There's a crucial difference between this and the req to notify the commission, in that there's no explicit dedln (though there's a vague 'reasonableness' req), whereas the org must notify the Commission no later than 3 days after org figures out that it's a notifiable data breach
-
-
-Ideas
-------
-I think that this 'race condition' is a safety property: we only need a finite trace to get the counterexample
-
-
-To think about
----------------
-** Should we use temporal mode? prob best to try both and see how
-
-* auxiliary relations for events, or just using a more events-based approach (where instead of writing a predicate for each operation, a signature is declared whose atoms represent a set of events)
-    * see Raymond Reiter. The frame problem in the situation calculus: a simple solution (sometimes) and a completeness result for goal regression and [https://haslab.github.io/formal-software-design/modeling-tips/index.html#an-idiom-to-depict-events] 
-
-*/
 
 abstract sig Duration {}
 one sig dOne, dTwo extends Duration {}
@@ -125,7 +32,7 @@ Not sure if shld use Event or State for this --- look more closely at the tutori
 */
 // Important modelling invariant: put all state-related stuff in this sig! That way will be clear what frame conditions etc to use 
 sig State {
-    notifyStatus: pfunc Actor -> Notification,
+    notifyStatus: set Actor -> Notification,
     -- impt that this be pfunc and not func!
     -- what notification(s) / notification decision(s) Actor has made
 
@@ -139,7 +46,7 @@ one sig stNDBreach extends State {}
 ------------------------ UTILITY FUNCS ---------------------------------------------------
 // could make an org / pdpc notification sig...
 fun notifs[actr: Actor]: set Notification {
-    actr = Org => nNotifyAffected + nOrgNotifiesPDPC else nNotifyAffected + nPDPCSaysDoNotNotifyAffected
+    actr = Org => (nNotifyAffected + nOrgNotifiesPDPC) else nNotifyAffected + nPDPCSaysDoNotNotifyAffected
 }
 
 // set of actors that are 'in the critical section' in that state; i.e., that are sending notification of some sort re the affected
@@ -176,11 +83,11 @@ fun betweenInclBoth[s1: State, s2: State]: set State {
 
 pred initNDBWhereNotifyAffectedInstantaneous[s: State] {
     all actr: Actor | no s.notifyStatus[actr]
-    all s: statesAfterIncl[stNDBreach] | Org.durationNotifyAffected = dOne    
+    Org.durationNotifyAffected = dOne    
 }
 pred initNDB[s: State] {
     all actr: Actor | no s.notifyStatus[actr]
-    all s: statesAfterIncl[stNDBreach] | Org.durationNotifyAffected = dTwo    
+    Org.durationNotifyAffected = dTwo    
 }
 
 
@@ -189,7 +96,8 @@ pred initNDB[s: State] {
 */
 pred someSubstantiveTransEnabled[pre: State] {
     -- org notification transitions
-    enabledOrgStartsNotifyingAffected[pre] 
+    enabledOrgStartsNotifyingAffected[pre] or
+    enabledOrgNotifAffectedContinues[pre] or
     // or enabledOrgDoesNotNotifyAffected[pre] or
 
     enabledOrgNotifiesPDPC[pre] or 
@@ -224,7 +132,7 @@ pred stutter[pre: State, post: State] {
 
 -- helper fn
 fun preStatesWithPriorNotifn (actr: Actor, notifn: Notification, pre: State): set State {
-    {s: State | s in (statesBefore[pre] + pre) and notifn in s.notifyStatus[actr]}
+    {s: (statesBefore[pre] + pre) | notifn in s.notifyStatus[actr]}
 }
 
 -- IMPT: orgNotifiesPDPC and orgStartsNotifyingAffected are NOT 'happy path / what a law-abiding Org would do' preds. 
@@ -311,20 +219,31 @@ pred orgStartsNotifyingAffected[pre: State, post: State] {
     // Do NOT say that post.notifyStatus[PDPC] must = pre's!
 }
 
-// pred enabledOrgDoesNotNotifyAffected[pre: State] {
-//     not (some pre.next and orgStartsNotifyingAffected[pre, pre.next])
-// }
+pred orgNotifyAffectedFlagUp[s: State] {
+    nNotifyAffected in s.notifyStatus[Org]
+}
+pred enabledOrgNotifAffectedContinues[pre: State] {
+    orgNotifyAffectedFlagUp[pre]
+}
+pred orgNotifAffectedContinues[pre: State, post: State] {
+    enabledOrgNotifAffectedContinues[pre]
+
+    orgNotifyAffectedFlagUp[post]
+}
+
+
+pred enabledOrgDoesNotNotifyAffected[pre: State] {
+    not orgStartsNotifyingAffected[pre.~next, pre]
+}
 pred orgDoesNotNotifyAffected[pre: State, post: State] {
-    // enabledOrgDoesNotNotifyAffected[pre]
+    enabledOrgDoesNotNotifyAffected[pre]
 
     nNotifyAffected not in post.notifyStatus[Org]   
 }
 
-pred orgHasNotifiedAffected[s: State] {
-    nNotifyAffected in s.notifyStatus[Org]
-}
+
 pred enabledCleanupOrgNotifiesAffected[pre: State] {
-    orgHasNotifiedAffected[pre]   
+    orgNotifyAffectedFlagUp[pre]   
 }
 pred cleanupOrgNotifiesAffected[pre: State, post: State] {
     enabledCleanupOrgNotifiesAffected[pre]
@@ -396,12 +315,21 @@ pred orgNotifsImpliesOrgMoved {
             nOrgNotifiesPDPC not in (s.next).notifyStatus[Org] 
         } implies orgDoesNotNotifyPDPC[s, s.next]
 
+    // if org notifies affected flag up in post but not in pre, it's cos of orgStartsNotifyingAffected
     all s: statesAfterIncl[stNDBreach] |  
         {
             some s.next 
             nNotifyAffected not in s.notifyStatus[Org]
             nNotifyAffected in (s.next).notifyStatus[Org]
         } implies orgStartsNotifyingAffected[s, s.next]
+    // if org notifies affected flag up in pre and post, it's cos of orgStartsNotifyingAffected
+    all s: statesAfterIncl[stNDBreach] |  
+        {
+            some s.next 
+            nNotifyAffected in s.notifyStatus[Org]
+            nNotifyAffected in (s.next).notifyStatus[Org]
+        } implies orgNotifAffectedContinues[s, s.next]
+
 
     all s: statesAfterIncl[stNDBreach] |  
         {
@@ -454,15 +382,17 @@ pred transitn[pre: State, post: State] {
     
     orgNotifiesPDPC[pre, post] or
     orgDoesNotNotifyPDPC[pre, post] or
-    // cleanupOrgNotifiesPDPC[pre, post] or
 
-    // to think abt: is there any value to having states that do nothing but clean up some prev event?
     orgStartsNotifyingAffected[pre, post] or
+    (Org.durationNotifyAffected = dTwo => orgNotifAffectedContinues[pre, post]) or
     orgDoesNotNotifyAffected[pre, post] or
-    // cleanupOrgNotifiesAffected[pre, post] or
-
+    
     PDPCRespondsToOrgIfOrgHadNotified[pre, post]
+    
+    // to think abt: is there any value to having states that do nothing but clean up some prev event?
+    // cleanupOrgNotifiesAffected[pre, post] or
     // cleanupPDPCRespondsToOrg[pre, post] or
+    // cleanupOrgNotifiesPDPC[pre, post] or
 }
 pred traces {
     wellformed
@@ -472,16 +402,33 @@ pred traces {
     no sprev: State | sprev.next = stNDBreach
     
     all s: State | {
-        some s.next implies { transitn[s, s.next] or stutter[s, s.next] }
+        some s.next implies { transitn[s, s.next]  or stutter[s, s.next] }
     }
 }
-/*
-run { 
-     traces
-    } for exactly 4 State for {next is linear}
-*/
+
+// run {
+//     traces
+//     // some
+// } for exactly 5 State for {next is linear}
+
+-- run of the 'race condition', formulated in a somewhat low-level way
+// 'Is there a state where org starts notifying affected at same time as org notifies pdpc, but where pdpc tells org that they must not notify affected while org is in the middle of notifying the affected?'
 run {
     traces
-    // some
-} for exactly 5 State for {next is linear}
+    some s: State |
+        {   
+            orgHasNotifiedPDPC[s]
+            // org notifies pdpc at s
 
+            orgNotifyAffectedFlagUp[s] and orgNotifyAffectedFlagUp[s.next] 
+            // org's notifying of affected takes place over s and s.next
+
+            nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
+            // pdpc says not to notify on s.next
+        }
+} for 5 State for {next is linear} 
+
+
+
+
+// TO DO: Add the in cs stuff -- both runs and tests
