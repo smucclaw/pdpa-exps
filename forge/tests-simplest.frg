@@ -5,6 +5,7 @@ test expect {
     /*
     TO DO:
     * Add tests to figure out the greatest lower bound for number of states for tests / runs
+    * If Org.durationNotifyAffected = dTwo => If org starts notifying affected at least two states before the end, then org will spend two states notifying affected
     */
 
 
