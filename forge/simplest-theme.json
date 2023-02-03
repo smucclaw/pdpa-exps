@@ -76,6 +76,22 @@
           "fill": "#f4f1f1"
         }
       }
+    },
+    {
+      "targets": [
+        {
+          "type": "Duration"
+        }
+      ],
+      "styles": {
+        "label": {
+          "fontSize": "1"
+        },
+        "node": {
+          "strokeWidth": 0,
+          "stroke": "#fafafa"
+        }
+      }
     }
   ],
   "edges": [
@@ -133,6 +149,22 @@
       },
       "curve": {
         "type": "bspline"
+      }
+    },
+    {
+      "targets": [
+        {
+          "relation": "Org<:durationNotifyAffected"
+        }
+      ],
+      "styles": {
+        "edge": {
+          "strokeWidth": 0,
+          "stroke": "#5f7391"
+        },
+        "label": {
+          "fontSize": "1"
+        }
       }
     }
   ]
