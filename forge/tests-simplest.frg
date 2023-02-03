@@ -1,5 +1,5 @@
 #lang forge
-open "pdpa-simple.frg"
+open "simplest.frg"
 
 test expect {
     /*
@@ -29,7 +29,7 @@ test expect {
     PossibleOrgNotNotifyPDPC: {
         traces 
         no {s: State | s in statesAfterIncl[stNDBreach] and orgHasNotifiedPDPC[s]}
-    }  for 4 State for {next is linear} is sat 
+    }  for 5 State for {next is linear} is sat 
  
 
     PossibleOrgNotifiesAffected: {
@@ -37,10 +37,10 @@ test expect {
         some {s: State | s in statesAfterIncl[stNDBreach] and nNotifyAffected in s.notifyStatus[Org]}
     }  for {next is linear} is sat 
 
-    OrgNotifiesAffectedOnlyAtMostOnce: {
-        traces implies #{s: State | s in statesAfterIncl[stNDBreach] and nNotifyAffected in s.notifyStatus[Org]} <= 1
-    } for 4 State for {next is linear} is theorem
-    -- TO DO: check with higher number of states once we fix the stutter transitions
+    PossibleOrgNotifyBothAffectedAndPDPCOnSameState: {
+        traces 
+        some {s: State | nOrgNotifiesPDPC in s.notifyStatus[Org] and nNotifyAffected in s.notifyStatus[Org]}
+    }  for {next is linear} is sat 
 
     PossibleOrgNotifyAffectedBeforeNotifyingPDPC: {
         traces
@@ -108,7 +108,7 @@ test expect {
         some s: State |
             { 
                 s in statesAfterIncl[stNDBreach]
-                nOrgNotifiesPDPC in (s.next).notifyStatus[Org] // or nOrgNOTnotifyPDPC in (s.next).notifyStatus[Org]
+                nOrgNotifiesPDPC in (s.next).notifyStatus[Org]
                 not orgNotifiesPDPC[s, s.next]
             }
     } for 4 State for {next is linear} is unsat
@@ -118,15 +118,22 @@ test expect {
         some s: State |
             { 
                 s in statesAfterIncl[stNDBreach]
+                no preStatesWithPriorNotifn[Org, nNotifyAffected, s]
                 nNotifyAffected in (s.next).notifyStatus[Org] 
 
-                not orgNotifiesAffected[s, s.next]
+                not orgStartsNotifyingAffected[s, s.next]
             }
     } for 4 State for {next is linear} is unsat
 
-    OrgNotifsToAffectedOnlyOnOneStateMax: {
+    // nNotifyAffected in s.notifyStatus[Org]
+    OrgStartsNotifyingAffectedPredRunsOnlyAtMostOnce: {
+        traces implies #{s: statesAfterIncl[stNDBreach] | orgStartsNotifyingAffected[s, s.next]} <= 1
+    } for 5 State for {next is linear} is theorem
+    -- TO DO: check with higher number of states once we fix the stutter transitions
+
+    OrgNotifsToAffectedOnlyTwoStatesMax: {
         traces implies 
-            #{s: State | s in statesAfterIncl[stNDBreach] and nNotifyAffected in s.notifyStatus[Org]} <= 1
+            #{s: statesAfterIncl[stNDBreach] | nNotifyAffected in s.notifyStatus[Org]} <= 2
     } for 5 State for {next is linear} is theorem
 
     // clean up occurs once, max (max, b/c org may not notify PDPC)
@@ -163,26 +170,6 @@ test expect {
             }
     } for 4 State for {next is linear} is sat
 
-    // It's possible for Org to notify PDPC and notify affected, and for PDPC to __subsequently__ say NOT to notify
-    PDPCCanSayNotToNotifyEvenAfterOrgHasNotifiedAffected: {
-        traces
-        // s2 can be s1
-        some s1, s2: State |
-            { 
-                s1 in statesAfterIncl[stNDBreach]
-                s2 in (s1  + s1.^next)                             
-
-                some preStatesWithPriorNotifn[Org, nOrgNotifiesPDPC, s1.(~next)] 
-                // org notifies pdpc before s1
-
-                nNotifyAffected in s1.notifyStatus[Org] 
-                // org notifies affected on s1
-
-                nPDPCSaysDoNotNotifyAffected in s2.notifyStatus[PDPC]
-                // pdpc says not to notify on either s1 or some state after
-            }
-    } for 4 State for {next is linear} is sat
-
 
     PDPCWillNotRespondToOrgBeforeOrgConsidersNotifyingPDPC: {
         traces  
@@ -198,15 +185,49 @@ test expect {
     } for 3 State for {next is linear} is unsat
 
     PDPCWillAlwaysRespondToOrgIfOrgNotifiesIt:  {
-        traces  
-        some s1: State | 
+        traces implies
             {
-                s1 = stNDBreach or s1 = stNDBreach.next 
-                nOrgNotifiesPDPC in s1.notifyStatus[Org] 
-                
-                no {s2: State | s2 in s1.^next and (nNotifyAffected in s2.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s2.notifyStatus[PDPC])}
-            } 
-    } for 4 State for {next is linear} is unsat
+                orgHasNotifiedPDPC[stNDBreach.next] 
+                => some {s2: State | s2 in (stNDBreach.next).^next and 
+                                    (nNotifyAffected in s2.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s2.notifyStatus[PDPC])}
+            }
+    } for exactly 4 State for {next is linear} is theorem
+
+    // It's possible for Org to notify PDPC and for PDPC to __subsequently__ say to notify while Org is IN MIDDLE OF notifying affected
+    PDPCCanSayNotToNotifyEvenAfterOrgHasNotifiedAffected: {
+        traces
+        some s: State |
+            {   
+                orgHasNotifiedPDPC[s]
+                // org notifies pdpc at s
+
+                orgNotifyAffectedFlagUp[s] and orgNotifyAffectedFlagUp[s.next] 
+                // org's notifying of affected takes place over s and s.next
+
+                nNotifyAffected in (s.next).notifyStatus[PDPC]
+                // pdpc says to notify on s.next
+            }
+    } for 5 State for {next is linear} is sat
+
+
+    ----- 'the race condition' -----------------------
+
+    // It's possible for Org to notify PDPC and for PDPC to __subsequently__ say NOT to notify while Org is IN MIDDLE OF notifying affected
+    PDPCCanSayNotToNotifyEvenAfterOrgHasNotifiedAffected: {
+        traces
+        some s: State |
+            {   
+                orgHasNotifiedPDPC[s]
+                // org notifies pdpc at s
+
+                orgNotifyAffectedFlagUp[s] and orgNotifyAffectedFlagUp[s.next] 
+                // org's notifying of affected takes place over s and s.next
+
+                nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
+                // pdpc says not to notify on s.next
+            }
+    } for 5 State for {next is linear} is sat
+
 
     ------- Obligation mechanics
 
