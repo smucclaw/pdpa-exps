@@ -1,0 +1,139 @@
+{
+  "hidden": {
+    "builtinDisconnected": true
+  },
+  "nodes": [
+    {
+      "shape": {
+        "shape": "rectangle",
+        "width": 100,
+        "height": 60
+      },
+      "styles": {
+        "node": {
+          "stroke": "#333",
+          "strokeWidth": 1,
+          "fill": "#ffffff"
+        },
+        "label": {
+          "fontFamily": "monospace",
+          "fontSize": "14px",
+          "textAnchor": "middle",
+          "userSelect": "none",
+          "fill": "#333"
+        }
+      },
+      "props": {
+        "label": {
+          "dy": "0.33em"
+        }
+      },
+      "targets": [
+        "*"
+      ]
+    },
+    {
+      "targets": [
+        {
+          "type": "Notification"
+        }
+      ],
+      "styles": {
+        "node": {
+          "strokeWidth": 0
+        },
+        "label": {
+          "fill": "#fffafa"
+        }
+      }
+    },
+    {
+      "targets": [
+        {
+          "type": "PDPC"
+        }
+      ],
+      "styles": {
+        "node": {
+          "strokeWidth": 0
+        },
+        "label": {
+          "fill": "#fdfcfc"
+        }
+      }
+    },
+    {
+      "targets": [
+        {
+          "type": "Org"
+        }
+      ],
+      "styles": {
+        "node": {
+          "strokeWidth": 0
+        },
+        "label": {
+          "fill": "#f4f1f1"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "curve": {
+        "type": "bspline"
+      },
+      "styles": {
+        "edge": {
+          "stroke": "#333",
+          "strokeWidth": 1,
+          "fill": "none"
+        },
+        "label": {
+          "fontFamily": "monospace",
+          "fontSize": "12px",
+          "textAnchor": "middle",
+          "userSelect": "none"
+        }
+      },
+      "targets": [
+        "*"
+      ]
+    },
+    {
+      "targets": [
+        {
+          "relation": "State<:notifyStatus"
+        }
+      ],
+      "styles": {
+        "edge": {
+          "strokeWidth": 0
+        }
+      },
+      "asAttribute": true,
+      "curve": {
+        "type": "bspline"
+      }
+    },
+    {
+      "targets": [
+        {
+          "relation": "State<:next"
+        }
+      ],
+      "styles": {
+        "edge": {
+          "strokeWidth": 1.3,
+          "stroke": "#495da7"
+        },
+        "label": {
+          "fontSize": "1"
+        }
+      },
+      "curve": {
+        "type": "bspline"
+      }
+    }
+  ]
+}
