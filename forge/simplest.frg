@@ -24,12 +24,6 @@ one sig nOrgNotifiesPDPC extends Notification {}
 -- strictly speaking, nNotifyAffected has two meanings here: for the PDPC, it means 'Org *must* notify affected', whereas for the org, it will be: Org has notified / is now notifying affected
 
 
-/*
-abstract sig Event {}
-one sig InitNotifiableDataBreach, Stutter, OrgBreaksLaw, AllIsGood extends Event {}
-
-Not sure if shld use Event or State for this --- look more closely at the tutorial + try to get better sense for how visualizer would handle this!
-*/
 // Important modelling invariant: put all state-related stuff in this sig! That way will be clear what frame conditions etc to use 
 sig State {
     notifyStatus: set Actor -> Notification,
