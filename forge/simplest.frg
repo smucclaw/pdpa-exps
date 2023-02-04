@@ -51,7 +51,7 @@ fun notifs[actr: Actor]: set Notification {
 
 // set of actors that are 'in the critical section' in that state; i.e., that are sending notification of some sort re the affected
 fun inCS[s: State]: set Actor {
-    {actr: Actor | s.notifyStatus[actr] in nNotifyAffected + nPDPCSaysDoNotNotifyAffected}
+    {actr: Actor | nNotifyAffected in s.notifyStatus[actr] or nPDPCSaysDoNotNotifyAffected in s.notifyStatus[actr]}
 }
 
 fun statesBefore[s: State]: set State {
@@ -263,7 +263,7 @@ pred enabledPDPCRespondsToOrg[pre: State] {
 pred PDPCRespondsToOrgIfOrgHadNotified[pre: State, post: State] {
     enabledPDPCRespondsToOrg[pre]
 
-    post.notifyStatus[PDPC] in nNotifyAffected + nPDPCSaysDoNotNotifyAffected   
+    post.notifyStatus[PDPC] = nNotifyAffected or post.notifyStatus[PDPC] = nPDPCSaysDoNotNotifyAffected   
     // Simplifying modelling assumption: PDPC won't just ignore Org's notification and do nothing
 
     some post.next => cleanupPDPCRespondsToOrg[post, post.next]
@@ -413,22 +413,25 @@ pred traces {
 
 -- run of the 'race condition', formulated in a somewhat low-level way
 // 'Is there a state where org starts notifying affected at same time as org notifies pdpc, but where pdpc tells org that they must not notify affected while org is in the middle of notifying the affected?'
+// run {
+//     traces
+//     some s: State |
+//         {   
+//             orgHasNotifiedPDPC[s]
+//             // org notifies pdpc at s
+
+//             orgNotifyAffectedFlagUp[s] and orgNotifyAffectedFlagUp[s.next] 
+//             // org's notifying of affected takes place over s and s.next
+
+//             nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
+//             // pdpc says not to notify on s.next
+//         }
+// } for 5 State for {next is linear} 
+
+
+
+// critical section version variant query; this is more permissive b/c this also includes situations where Org and PDPC agree that affected should be notified
 run {
     traces
-    some s: State |
-        {   
-            orgHasNotifiedPDPC[s]
-            // org notifies pdpc at s
-
-            orgNotifyAffectedFlagUp[s] and orgNotifyAffectedFlagUp[s.next] 
-            // org's notifying of affected takes place over s and s.next
-
-            nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
-            // pdpc says not to notify on s.next
-        }
-} for 5 State for {next is linear} 
-
-
-
-
-// TO DO: Add the in cs stuff -- both runs and tests
+    some s: State | Org + PDPC in inCS[s]
+} for 4 State for {next is linear} 
