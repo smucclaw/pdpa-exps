@@ -85,17 +85,12 @@ pred initNDB[s: State] {
 }
 
 
-/* TO DO
-1. Look into whether shld add enabledOrgDoesNotNotifyAffected and enabledOrgDoesNotNotifyPDPC. I want to say no b/c those woudl be true even if we do want to stutter, but not sure
-*/
 pred someSubstantiveTransEnabled[pre: State] {
     -- org notification transitions
     enabledOrgStartsNotifyingAffected[pre] or
     enabledOrgNotifAffectedContinues[pre] or
-    // or enabledOrgDoesNotNotifyAffected[pre] or
 
     enabledOrgNotifiesPDPC[pre] or 
-    // enabledOrgDoesNotNotifyPDPC[pre] or
     
     enabledCleanupOrgNotifPDPC[pre] or
     enabledCleanupOrgNotifiesAffected[pre] or
@@ -104,9 +99,9 @@ pred someSubstantiveTransEnabled[pre: State] {
     enabledPDPCRespondsToOrg[pre] or
     enabledCleanupPDPCRespondsToOrg[pre] 
 }
-// 
+
 /*
-TO DO: Chk / refactor*/
+TO DO: Chk this*/
 pred stutter[pre: State, post: State] {
     not someSubstantiveTransEnabled[pre]
 
@@ -253,7 +248,6 @@ pred enabledPDPCRespondsToOrg[pre: State] {
     // Simplifying modelling assunmption: Require that in pre or in some state before pre, Org has notified PDPC (not just that they've considered doing so!)
     some preStatesWithPriorNotifn[Org, nOrgNotifiesPDPC, pre]
 }
-// TO DO: Check this, have been refactoring a lot
 pred PDPCRespondsToOrgIfOrgHadNotified[pre: State, post: State] {
     enabledPDPCRespondsToOrg[pre]
 
@@ -366,13 +360,7 @@ pred wellformed {
     PDPCWillRespondWithinOneTick
 }
 
-
-// pred enabledTransitn[pre: State] { 
-//     // what is required for a substantive transition to occur
-//     not finis[pre]
-// }
 pred transitn[pre: State, post: State] {
-    // enabledTransitn[pre]
     
     orgNotifiesPDPC[pre, post] or
     orgDoesNotNotifyPDPC[pre, post] or
@@ -383,10 +371,6 @@ pred transitn[pre: State, post: State] {
     
     PDPCRespondsToOrgIfOrgHadNotified[pre, post]
     
-    // to think abt: is there any value to having states that do nothing but clean up some prev event?
-    // cleanupOrgNotifiesAffected[pre, post] or
-    // cleanupPDPCRespondsToOrg[pre, post] or
-    // cleanupOrgNotifiesPDPC[pre, post] or
 }
 pred traces {
     wellformed
@@ -407,21 +391,21 @@ pred traces {
 
 -- run of the 'race condition', formulated in a somewhat low-level way
 // 'Is there a state where org starts notifying affected at same time as org notifies pdpc, but where pdpc tells org that they must not notify affected while org is in the middle of notifying the affected?'
-// run {
-//     traces
-//     some s: State |
-//         {   
-//             orgHasNotifiedPDPC[s]
-//             // org notifies pdpc at s
+// This must be commented out to see the second run below
+run {
+    traces
+    some s: State |
+        {   
+            orgHasNotifiedPDPC[s]
+            // org notifies pdpc at s
 
-//             orgNotifyAffectedFlagUp[s] and orgNotifyAffectedFlagUp[s.next] 
-//             // org's notifying of affected takes place over s and s.next
+            orgNotifyAffectedFlagUp[s] and orgNotifyAffectedFlagUp[s.next] 
+            // org's notifying of affected takes place over s and s.next
 
-//             nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
-//             // pdpc says not to notify on s.next
-//         }
-// } for 5 State for {next is linear} 
-
+            nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
+            // pdpc says not to notify on s.next
+        }
+} for 5 State for {next is linear} 
 
 
 // critical section version variant query; this is more permissive b/c this also includes situations where Org and PDPC agree that affected should be notified
