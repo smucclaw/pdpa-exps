@@ -15,6 +15,11 @@ test expect {
 
     ------- Notification mechanics
 
+    PossibleNoNotificationsOccur: {
+        traces
+        no {s: State | orgHasNotifiedPDPC[s] or PDPCResponded[s] or orgNotifyAffectedFlagUp[s]}
+    } for 5 State for {next is linear} is sat
+
     EnablingPredForNotifyingPDPCIsSat: {
         traces
         some {s: State | enabledOrgNotifiesPDPC[s]}
