@@ -106,8 +106,14 @@ To think about
 
 */
 
+abstract sig Duration {}
+one sig dOne, dTwo extends Duration {}
+
 abstract sig Actor {}
-one sig PDPC, Org extends Actor {}
+one sig PDPC extends Actor {}
+one sig Org extends Actor {
+    durationNotifyAffected: one Duration
+}
 /* Modelling choices to think abt here: 
 
 * I'm currently folding in Affected / Individual into the states instead of treating it as a separate actor to whom messages can be passed, but is that simplification OK?
@@ -116,15 +122,10 @@ one sig PDPC, Org extends Actor {}
 */
 
 abstract sig Notification {}
-// nOrgNOTnotifyAffected
-// nOrgNOTnotifyPDPC
+
 one sig nNotifyAffected, nPDPCSaysDoNotNotifyAffected extends Notification {}
 one sig nOrgNotifiesPDPC extends Notification {}
 -- strictly speaking, nNotifyAffected has two meanings here: for the PDPC, it means 'Org *must* notify affected', whereas for the org, it will be: Org has notified / is now notifying affected
-
-abstract sig Duration {}
-one sig dOne, dTwo extends Duration {}
-
 
 /*
 abstract sig Event {}
@@ -134,14 +135,14 @@ Not sure if shld use Event or State for this --- look more closely at the tutori
 */
 // Important modelling invariant: put all state-related stuff in this sig! That way will be clear what frame conditions etc to use 
 sig State {
-    notifyStatus: pfunc Actor -> Notification,
+    notifyStatus: set Actor -> Notification,
     -- impt that this be pfunc and not func!
     -- what notification(s) / notification decision(s) Actor has made
 
     next: lone State,
     activeObligs: set Obligation,
     // modelling assumption: not including what might think of as obligations for PDPC --- only things *Org* obligated to do
-    ObligsTtSeemOutstandingToOrg: set Obligation
+    obligsTtSeemOutstandingToOrg: set Obligation
     // the more general way to model this would be as pfunc Actor -> Obligation
 
     /* TO DO another time
@@ -165,10 +166,10 @@ abstract sig Obligation {
     // for 'assignment of blame'; can be set thereof in more complicated models
 
     // in this specification, all the obligations have exactly one trigger and exactly one check state
-    // oblig_trigger: one State, 
+    triggerSt: one State, 
     // Actually, may not make sense to include this given that oblig trigger may often include predicates, and so it may make more sense to just put that in the oblig introduction predicate
     
-    obligCheck: one State,
+    checkSt: one State,
     // happy_posts: set State,
     breachPost: lone State 
     // in the more general case, this would be `set` and not `lone`
@@ -186,13 +187,12 @@ one sig oblOrgToNotifyPDPC extends Obligation {}
 ------------------------ UTILITY FUNCS ---------------------------------------------------
 // could make an org / pdpc notification sig...
 fun notifs[actr: Actor]: set Notification {
-    actr = Org => nNotifyAffected + nOrgNotifiesPDPC else nNotifyAffected + nPDPCSaysDoNotNotifyAffected
+    actr = Org => (nNotifyAffected + nOrgNotifiesPDPC) else nNotifyAffected + nPDPCSaysDoNotNotifyAffected
 }
-
 
 // set of actors that are 'in the critical section' in that state; i.e., that are sending notification of some sort re the affected
 fun inCS[s: State]: set Actor {
-    {actr: Actor | s.notifyStatus[actr] in NotifyAffected + nPDPCSaysDoNotNotifyAffected}
+    {actr: Actor | nNotifyAffected in s.notifyStatus[actr] or nPDPCSaysDoNotNotifyAffected in s.notifyStatus[actr]}
 }
 
 fun statesBefore[s: State]: set State {
@@ -224,25 +224,27 @@ fun betweenInclBoth[s1: State, s2: State]: set State {
 
 ------------ PREDS -------------------------------------------------
 
-// OK don't worry about obligs till I've got the overall structure of the states sorted out!
+
 // pred setupOblOrgSilencedByPDPC {
 //     oblOrgSilencedByPDPC.owedOf = Org
-//     oblOrgSilencedByPDPC.oblig_trigger = 
-//     oblOrgSilencedByPDPC.obligCheck = 
+//     oblOrgSilencedByPDPC.triggerSt = 
+//     oblOrgSilencedByPDPC.checkSt = 
 //     oblOrgSilencedByPDPC.happy_posts = 
 //     oblOrgSilencedByPDPC.breachPost = 
 // }
 
 pred setupOblOrgToNotifyPDPC {
     oblOrgToNotifyPDPC.owedOf = Org
-    oblOrgToNotifyPDPC.obligCheck = stDedlnOrgNotifyPDPC
+    oblOrgToNotifyPDPC.checkSt = stDedlnOrgNotifyPDPC
+    oblOrgToNotifyPDPC.triggerSt = stNDBreach
+    
     oblOrgToNotifyPDPC.breachPost = stOrgBrokeLaw
 }
 
 // pred setupOblOrgToNotifyAffected {
 //     oblOrgToNotifyAffected.owedOf = Org
-//     oblOrgToNotifyAffected.oblig_trigger = stNDBreach
-//     oblOrgToNotifyAffected.obligCheck = stDedlnOrgNotifyPDPC
+//     oblOrgToNotifyAffected.triggerSt = stNDBreach
+//     oblOrgToNotifyAffected.checkSt = stDedlnOrgNotifyPDPC
 //     oblOrgToNotifyAffected.happy_posts = 
 //     oblOrgToNotifyAffected.breachPost = 
 // }
@@ -256,10 +258,11 @@ pred setupObligations {
 
 pred initNDB[s: State] {
     all actr: Actor | no s.notifyStatus[actr]
+    Org.durationNotifyAffected = dTwo    
 
     setupObligations
     no s.activeObligs 
-    no ObligsTtSeemOutstandingToOrg
+    no s.obligsTtSeemOutstandingToOrg
     // arbitrary modelling assumption: the obligation starts from the next time tick since that's when Org gets to start reacting to how an NDB has occurred
     some s.next => activateOblOrgNotifyPDPC[s, s.next]
 
@@ -281,13 +284,12 @@ pred finis[s: State] { // check if we're in a 'terminal' state
 pred someSubstantiveTransEnabled[pre: State] {
     -- org notification transitions
     enabledOrgStartsNotifyingAffected[pre] or 
-    // enabledOrgDoesNotNotifyAffected[pre] or
+    enabledOrgNotifAffectedContinues[pre] or
 
     enabledOrgNotifiesPDPC[pre] or 
-    // enabledOrgDoesNotNotifyPDPC[pre] or
     
     enabledCleanupOrgNotifPDPC[pre] or
-    enabledCleanupOrgStartsNotifyingAffected[pre] or
+    enabledCleanupOrgNotifiesAffected[pre] or
 
     -- pdpc notification transitions
     enabledPDPCRespondsToOrg[pre] or
@@ -326,30 +328,25 @@ How I'm thinking about (6):
 
 -- helper fn
 fun preStatesWithPriorNotifn (actr: Actor, notifn: Notification, pre: State): set State {
-    {s: State | s in (statesBefore[pre] + pre) and notifn in s.notifyStatus[actr]}
+    {s: (statesBefore[pre] + pre) | notifn in s.notifyStatus[actr]}
 }
 
 -- IMPT: orgNotifiesPDPC and orgStartsNotifyingAffected are NOT 'happy path / what a law-abiding Org would do' preds. 
 -- Think of them instead as 'what it minimally takes for the state transitions to be wellformed / for the specification to work' preds
 
+pred orgDoesNotNotifyPDPC[pre: State, post: State] {
+    // enabledOrgDoesNotNotifyPDPC[pre]
+    nOrgNotifiesPDPC not in post.notifyStatus[Org]
+}
+
+
 pred enabledOrgNotifiesPDPC[pre: State] {
     // 1. Org has not made this move (potentially notifying PDPC) in pre or before
     no preStatesWithPriorNotifn[Org, nOrgNotifiesPDPC, pre]
-    // no preStatesWithPriorNotifn[Org, nOrgNOTnotifyPDPC, pre]
 
     // 3. Require that PDPC not have somehow told Org to notify or not notify ahead of time
     // This rules out, e.g., the edge case where PDPC somehow pre-emptively tells the org not to notify affected people about any possible issues arising from some likely but not yet confirmed notifiable data breach
     no {s: State | s in (statesBefore[pre] + pre) and some s.notifyStatus[PDPC]}
-}
-
-
-// pred enabledOrgDoesNotNotifyPDPC[pre: State] {
-//     not (some pre.next and orgNotifiesPDPC[pre, pre.next])
-// }
-pred orgDoesNotNotifyPDPC[pre: State, post: State] {
-    // enabledOrgDoesNotNotifyPDPC[pre]
-    
-    nOrgNotifiesPDPC not in post.notifyStatus[Org]
 }
 
 pred orgNotifiesPDPC[pre: State, post: State] {
@@ -383,14 +380,12 @@ pred cleanupOrgNotifiesPDPC[pre: State, post: State] {
 
     // Make sure the PDPC related notification flags not in post
     nOrgNotifiesPDPC not in post.notifyStatus[Org]
-    // nOrgNOTnotifyPDPC not in post.notifyStatus[Org]
 }
 
 
 pred enabledOrgStartsNotifyingAffected[pre: State] {
     // 1. First time Org considering whether to notify affected / making this move wrt affected
     no preStatesWithPriorNotifn[Org, nNotifyAffected, pre]
-    // no preStatesWithPriorNotifn[Org, nOrgNOTnotifyAffected, pre]
 
     /* NOT requiring tt 
         (i) Org have informed PDPC before this, 
@@ -404,37 +399,53 @@ pred orgStartsNotifyingAffected[pre: State, post: State] {
     enabledOrgStartsNotifyingAffected[pre]
 
     -- ACTIONS
-    // nOrgNOTnotifyAffected in post.notifyStatus[Org] or 
-    nNotifyAffected in post.notifyStatus[Org]
-
-    some post.next => cleanupOrgStartsNotifyingAffected[post, post.next]
+    Org.durationNotifyAffected = dOne => {
+        nNotifyAffected in post.notifyStatus[Org]
+        some post.next => cleanupOrgNotifiesAffected[post, post.next]
+    }
+    Org.durationNotifyAffected = dTwo => {
+        nNotifyAffected in post.notifyStatus[Org]
+        some post.next => nNotifyAffected in (post.next).notifyStatus[Org]
+        some (post.next).next => cleanupOrgNotifiesAffected[post.next, (post.next).next] 
+    }
 
     --- other frame conditions 
     // Do NOT say that post.notifyStatus[PDPC] must = pre's!
-    
+
     // TO DO: include oblig related state when get around to adding that
 }
 
+pred orgNotifyAffectedFlagUp[s: State] {
+    nNotifyAffected in s.notifyStatus[Org]
+}
+pred enabledOrgNotifAffectedContinues[pre: State] {
+    orgNotifyAffectedFlagUp[pre]
+}
+pred orgNotifAffectedContinues[pre: State, post: State] {
+    enabledOrgNotifAffectedContinues[pre]
+
+    orgNotifyAffectedFlagUp[post]
+}
+
 pred enabledOrgDoesNotNotifyAffected[pre: State] {
-    not (some pre.next and orgStartsNotifyingAffected[pre, pre.next])
+    not orgStartsNotifyingAffected[pre.~next, pre]
 }
 pred orgDoesNotNotifyAffected[pre: State, post: State] {
-    // enabledOrgDoesNotNotifyAffected[pre]
+    enabledOrgDoesNotNotifyAffected[pre]
 
     nNotifyAffected not in post.notifyStatus[Org]   
 }
 
-pred orgHasNotifiedAffected[s: State] {
-    nNotifyAffected in s.notifyStatus[Org]
+
+pred enabledCleanupOrgNotifiesAffected[pre: State] {
+    orgNotifyAffectedFlagUp[pre]   
 }
-pred enabledCleanupOrgStartsNotifyingAffected[pre: State] {
-    orgHasNotifiedAffected[pre]   
-}
-pred cleanupOrgStartsNotifyingAffected[pre: State, post: State] {
-    enabledCleanupOrgStartsNotifyingAffected[pre]
+pred cleanupOrgNotifiesAffected[pre: State, post: State] {
+    enabledCleanupOrgNotifiesAffected[pre]
 
     nNotifyAffected not in post.notifyStatus[Org]
 }
+
 
 
 pred enabledPDPCRespondsToOrg[pre: State] {
@@ -444,17 +455,17 @@ pred enabledPDPCRespondsToOrg[pre: State] {
     // Simplifying modelling assunmption: Require that in pre or in some state before pre, Org has notified PDPC (not just that they've considered doing so!)
     some preStatesWithPriorNotifn[Org, nOrgNotifiesPDPC, pre]
 }
-// TO DO: Check this, have been refactoring a lot
 pred PDPCRespondsToOrgIfOrgHadNotified[pre: State, post: State] {
     enabledPDPCRespondsToOrg[pre]
 
-    post.notifyStatus[PDPC] in NotifyAffected + nPDPCSaysDoNotNotifyAffected   
+    post.notifyStatus[PDPC] = nNotifyAffected or post.notifyStatus[PDPC] = nPDPCSaysDoNotNotifyAffected   
     // Simplifying modelling assumption: PDPC won't just ignore Org's notification and do nothing
 
     some post.next => cleanupPDPCRespondsToOrg[post, post.next]
 
     // TO DO: Handle oblig triggering and exempting stuff based on whether PDPC says to or not to notify affected
 }
+
 
 pred PDPCResponded[s: State] {
     nNotifyAffected in s.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]
@@ -478,7 +489,7 @@ For each oblig:
     * 
 2. a pred that checks the obligation
 
-3. require, for each state - initial where there's a non-empty set of active obligations, that the ObligsTtSeemOutstandingToOrg field of the state sig be updated 
+3. require, for each state - initial where there's a non-empty set of active obligations, that the obligsTtSeemOutstandingToOrg field of the state sig be updated 
     * this might involve making a new state trans pred, or just adding the relevant version of this to each of the state trans preds. Not sure which better right now
 
 
@@ -494,9 +505,10 @@ pred activateOblOrgNotifyPDPC[pre: State, post: State] {
     // we want the oblig tt org notify PDPC to be activated starting from the tick after the initial state (where Org realizes there is a NDB)
 
     -- Actions and Frame conditions
-    // 1. add the oblig to active obligs
-    post.activeObligs = pre.activeObligs + oblOrgToNotifyPDPC
-    
+    // 1. add the oblig to active obligs and obligsTtSeemOutstandingToOrg
+    pre.activeObligs + oblOrgToNotifyPDPC in post.activeObligs 
+    pre.activeObligs + oblOrgToNotifyPDPC in post.obligsTtSeemOutstandingToOrg 
+
     // 2. require that the oblig be checked iff trigger condition -- in this case, the temporal condition that 2 steps have elapsed (but could be some other condition) --- is met. 
     // the trigger condition would prob be configured/instantiated/parameterized at the lvl of the DSL
     let twoStatesFromNow = (pre.next).next |
@@ -504,14 +516,14 @@ pred activateOblOrgNotifyPDPC[pre: State, post: State] {
         some twoStatesFromNow =>     
         { 
             checkOblOrgNotifyPDPC[twoStatesFromNow, twoStatesFromNow.next]
-            // (oblOrgToNotifyPDPC.obligCheck) not in ({s: State | reachable[s, pre, next]} - twoStatesFromNow)
-            // TO THINK ABT: actually i don't think we need the above cos next is linear will make sure thre's no cycles, and checkOblOrgNotifyPDPC will already require that twoStatesFromNow = oblOrgToNotifyPDPC.obligCheck = the deadln state
+            // (oblOrgToNotifyPDPC.checkSt) not in ({s: State | reachable[s, pre, next]} - twoStatesFromNow)
+            // TO THINK ABT: actually i don't think we need the above cos next is linear will make sure thre's no cycles, and checkOblOrgNotifyPDPC will already require that twoStatesFromNow = oblOrgToNotifyPDPC.checkSt = the deadln state
         }
     
 }
 
 pred enabledCheckOblOrgNotifyPDPC[pre: State] {
-    pre = (oblOrgToNotifyPDPC.obligCheck)
+    pre = (oblOrgToNotifyPDPC.checkSt)
     oblOrgToNotifyPDPC in pre.activeObligs
 }
 
@@ -535,7 +547,7 @@ pred checkOblOrgNotifyPDPC[pre: State, post: State] {
 
 // pred checkIfSomeObligationViolated[oblig: Obligation, pre: State, post: State] {
 //     -- Guards
-//     // Chk that pre is in oblig's obligCheck states
+//     // Chk that pre is in oblig's checkSt states
 
 //     -- Actions
 //     // Remove the obligation in question from set of active obligations
@@ -581,7 +593,6 @@ pred AtOrgNotifPDPCDedlnStateImpliesCheckingOblig {
 pred PDPCNotifsImpliesPDPCMoved {
     all s: State |  
         {
-            s in statesAfterIncl[stNDBreach]
             some s.next 
             nNotifyAffected in (s.next).notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
         } implies
@@ -604,19 +615,27 @@ pred orgNotifsImpliesOrgMoved {
             nOrgNotifiesPDPC not in (s.next).notifyStatus[Org] 
         } implies orgDoesNotNotifyPDPC[s, s.next]
 
+
+    // if org notifies affected flag up in post but not in pre, it's cos of orgStartsNotifyingAffected
     all s: statesAfterIncl[stNDBreach] |  
         {
             some s.next 
             nNotifyAffected not in s.notifyStatus[Org]
             nNotifyAffected in (s.next).notifyStatus[Org]
         } implies orgStartsNotifyingAffected[s, s.next]
+    // if org notifies affected flag up in pre and post, it's cos of orgStartsNotifyingAffected
+    all s: statesAfterIncl[stNDBreach] |  
+        {
+            some s.next 
+            nNotifyAffected in s.notifyStatus[Org]
+            nNotifyAffected in (s.next).notifyStatus[Org]
+        } implies orgNotifAffectedContinues[s, s.next]
 
     all s: statesAfterIncl[stNDBreach] |  
         {
             some s.next 
             nNotifyAffected not in (s.next).notifyStatus[Org] 
         } implies orgDoesNotNotifyAffected[s, s.next]
-
 }
 
 
@@ -624,7 +643,7 @@ pred orgNotifsImpliesOrgMoved {
 
 pred PDPCWillRespondWithinOneTick {
     // [Simplifying modelling assumption] a 'non-starvation' property of sorts for PDPC: PDPC will always respond to Org's notification within 1 tick
-    all s: State | (  s in statesAfterIncl[stNDBreach] and orgHasNotifiedPDPC[s] ) => PDPCRespondsToOrgIfOrgHadNotified[s, s.next] 
+    all s: State | orgHasNotifiedPDPC[s] => PDPCRespondsToOrgIfOrgHadNotified[s, s.next] 
 }
 
 pred ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps { 
@@ -640,20 +659,19 @@ pred ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps {
 }
 
 pred activeObligsFieldWellformed{
-    let ONPDPCActivPre = {s: State | activateOblOrgNotifyPDPC[ONPDPCActivPre, ONPDPCActivPre.next]} |
-    let ONPDPCCheckPre = {s: State | checkOblOrgNotifyPDPC[ONPDPCCheckPre, ONPDPCCheckPre.next]} | 
-        (some ONPDPCActivPre and some ONPDPCCheckPre) =>
-            { 
-                all s: State | {
-                    s in betweenInclBoth[ONPDPCActivPre, ONPDPCCheckPre] <=> 
-                    oblOrgToNotifyPDPC in s.activeObligs
-                }
-            }
+
+    // notify PDPC oblig wellformedness
+    let ONPDPCActivPre = oblOrgToNotifyPDPC.triggerSt |
+    let ONPDPCCheckPre = oblOrgToNotifyPDPC.checkSt | 
+        all s: State | {
+            s in (between[ONPDPCActivPre, ONPDPCCheckPre] + ONPDPCCheckPre) <=> 
+            oblOrgToNotifyPDPC in s.activeObligs
+        }
 }
 
 
 pred notifStatusesCorrespondToActorNotifs {
-    all s: State | s in statesAfterIncl[stNDBreach] => s.notifyStatus[Org] in notifs[Org] and s.notifyStatus[PDPC] in notifs[PDPC]
+    all s: State | s.notifyStatus[Org] in notifs[Org] and s.notifyStatus[PDPC] in notifs[PDPC]
 }
 
 
@@ -684,32 +702,27 @@ pred toyStutter[pre: State, post: State] {
     
 }
 
-pred enabledTransitn[pre: State] { 
-    // what is required for a substantive transition to occur
-    not finis[pre]
-}
+// pred enabledTransitn[pre: State] { 
+//     // what is required for a substantive transition to occur
+//     not finis[pre]
+// }
 pred transitn[pre: State, post: State] {
-    enabledTransitn[pre]
     
     updateOutstandingObligs[pre, post] // TO DO
     { 
         orgNotifiesPDPC[pre, post] or
         orgDoesNotNotifyPDPC[pre, post] or
-        // cleanupOrgNotifiesPDPC[pre, post] or
 
-        // to think abt: is there any value to having states that do nothing but clean up some prev event?
         orgStartsNotifyingAffected[pre, post] or
+        (Org.durationNotifyAffected = dTwo => orgNotifAffectedContinues[pre, post]) or
         orgDoesNotNotifyAffected[pre, post] or
-        cleanupOrgStartsNotifyingAffected[pre, post] or
 
         PDPCRespondsToOrgIfOrgHadNotified[pre, post] or
-        // cleanupPDPCRespondsToOrg[pre, post] or
 
         -- Obligation related
         activateOblOrgNotifyPDPC[pre, post] or
         checkOblOrgNotifyPDPC[pre, post] 
 
-        // TO DO: Chk that basic infra / state transitions work first before adding in obligation stuff
         // checkAllObligsAtFinalDedln[s, s.next] or
 
     }
@@ -726,8 +739,8 @@ pred traces {
     }
 }
 
-// run { 
-//      traces
-//     } for exactly 4 State for {next is linear}
+run { 
+     traces
+    } for exactly 4 State for {next is linear}
 
 
