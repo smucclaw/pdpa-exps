@@ -138,7 +138,6 @@ pred orgDoesNotNotifyPDPC[pre: State, post: State] {
 pred enabledOrgNotifiesPDPC[pre: State] {
     // 1. Org has not made this move (potentially notifying PDPC) in pre or before
     no preStatesWithPriorNotifn[Org, nOrgNotifiesPDPC, pre]
-    // no preStatesWithPriorNotifn[Org, nOrgNOTnotifyPDPC, pre]
 
     // 3. Require that PDPC not have somehow told Org to notify or not notify ahead of time
     // This rules out, e.g., the edge case where PDPC somehow pre-emptively tells the org not to notify affected people about any possible issues arising from some likely but not yet confirmed notifiable data breach
@@ -180,7 +179,6 @@ pred cleanupOrgNotifiesPDPC[pre: State, post: State] {
 pred enabledOrgStartsNotifyingAffected[pre: State] {
     // 1. First time Org considering whether to notify affected / making this move wrt affected
     no preStatesWithPriorNotifn[Org, nNotifyAffected, pre]
-    // no preStatesWithPriorNotifn[Org, nOrgNOTnotifyAffected, pre]
 
     /* NOT requiring tt 
         (i) Org have informed PDPC before this, 
@@ -279,7 +277,7 @@ pred PDPCAndOrgAgree[s: State] {
 
 
 pred PDPCNotifsImpliesPDPCMoved {
-    all s: statesAfterIncl[stNDBreach] |  
+    all s: State |  
         {
             some s.next 
             nNotifyAffected in (s.next).notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in (s.next).notifyStatus[PDPC]
@@ -330,7 +328,7 @@ pred orgNotifsImpliesOrgMoved {
 
 pred PDPCWillRespondWithinOneTick {
     // [Simplifying modelling assumption] a 'non-starvation' property of sorts for PDPC: PDPC will always respond to Org's notification within 1 tick
-    all s: statesAfterIncl[stNDBreach] | orgHasNotifiedPDPC[s] => PDPCRespondsToOrgIfOrgHadNotified[s, s.next] 
+    all s: State | orgHasNotifiedPDPC[s] => PDPCRespondsToOrgIfOrgHadNotified[s, s.next] 
 }
 
 pred ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps { 
@@ -346,7 +344,7 @@ pred ifOrgNotifiesPDPCOrgDoesSoWithinFirstThreeSteps {
 }
 
 pred notifStatusesCorrespondToActorNotifs {
-    all s: statesAfterIncl[stNDBreach] | s.notifyStatus[Org] in notifs[Org] and s.notifyStatus[PDPC] in notifs[PDPC]
+    all s: State | s.notifyStatus[Org] in notifs[Org] and s.notifyStatus[PDPC] in notifs[PDPC]
 }
 
 
