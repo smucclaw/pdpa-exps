@@ -92,7 +92,7 @@ test expect {
                 nOrgNotifiesPDPC in (s.next).notifyStatus[Org]
                 not orgNotifiesPDPC[s, s.next]
             }
-    } for 4 State for {next is linear} is unsat
+    } for 5 State for {next is linear} is unsat
 
     OrgNotifyingAffectedIsDueToMovePred: {
         traces
@@ -103,7 +103,7 @@ test expect {
 
                 not orgStartsNotifyingAffected[s, s.next]
             }
-    } for 4 State for {next is linear} is unsat
+    } for 5 State for {next is linear} is unsat
 
     // nNotifyAffected in s.notifyStatus[Org]
     OrgStartsNotifyingAffectedPredRunsOnlyAtMostOnce: {
