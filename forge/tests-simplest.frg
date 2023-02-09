@@ -83,7 +83,7 @@ test expect {
             PDPCRespondsToOrgIfOrgHadNotified[s, s.next]  
             orgNotifiesPDPC[s, s.next]
         }
-    } for {next is linear} is unsat
+    } for exactly 5 State for {next is linear} is unsat
 
     OrgNotifyingPDPCIsDueToMovePred: {
         traces
@@ -92,7 +92,7 @@ test expect {
                 nOrgNotifiesPDPC in (s.next).notifyStatus[Org]
                 not orgNotifiesPDPC[s, s.next]
             }
-    } for 4 State for {next is linear} is unsat
+    } for exactly 5 State for {next is linear} is unsat
 
     OrgNotifyingAffectedIsDueToMovePred: {
         traces
@@ -103,35 +103,35 @@ test expect {
 
                 not orgStartsNotifyingAffected[s, s.next]
             }
-    } for 4 State for {next is linear} is unsat
+    } for exactly 5 State for {next is linear} is unsat
 
     // nNotifyAffected in s.notifyStatus[Org]
     OrgStartsNotifyingAffectedPredRunsOnlyAtMostOnce: {
         traces implies #{s: State | orgStartsNotifyingAffected[s, s.next]} <= 1
-    } for 5 State for {next is linear} is theorem
+    } for exactly 5 State for {next is linear} is theorem
     -- TO DO: check with higher number of states once we fix the stutter transitions
 
     OrgNotifsToAffectedOnlyTwoStatesMax: {
         traces implies 
             #{s: State | nNotifyAffected in s.notifyStatus[Org]} <= 2
-    } for 5 State for {next is linear} is theorem
+    } for exactly 5 State for {next is linear} is theorem
 
     // clean up occurs once, max (max, b/c org may not notify PDPC)
     CleanupOrgNotifiesPDPCOnceMax: {
         traces implies 
             #{s: State |    some s.next and 
                             cleanupOrgNotifiesPDPC[s, s.next]} <= 1
-    } for 5 State for {next is linear} is theorem
+    } for exactly 5 State for {next is linear} is theorem
 
     OrgNotifsToPDPCOnlyOnOneStateMax: {
         traces implies 
             #{s: State | nOrgNotifiesPDPC in s.notifyStatus[Org]} <= 1
-    } for 5 State for {next is linear} is theorem
+    } for exactly 5 State for {next is linear} is theorem
 
     PDPCWillNotMakeBothTypesOfNotificationOnSameState: {
         traces implies 
             no {s: State | nNotifyAffected + nPDPCSaysDoNotNotifyAffected in s.notifyStatus[PDPC]}
-    }  for 5 State for {next is linear} is theorem
+    }  for exactly 5 State for {next is linear} is theorem
 
     PDPCNotifsOnlyOnOneStateMax: {
         traces implies 
@@ -161,7 +161,7 @@ test expect {
                 nOrgNotifiesPDPC in s2.notifyStatus[Org] 
                 // this obviously assumes that the org move pred will make one of these two moves
             }
-    } for 3 State for {next is linear} is unsat
+    } for exactly 5 State for {next is linear} is unsat
 
     PDPCWillAlwaysRespondToOrgIfOrgNotifiesIt:  {
         traces implies
@@ -170,7 +170,7 @@ test expect {
                 => some {s2: State | s2 in (stNDBreach.next).^next and 
                                     (nNotifyAffected in s2.notifyStatus[PDPC] or nPDPCSaysDoNotNotifyAffected in s2.notifyStatus[PDPC])}
             }
-    } for exactly 4 State for {next is linear} is theorem
+    } for exactly 5 State for {next is linear} is theorem
 
     // It's possible for Org to notify PDPC and for PDPC to __subsequently__ say to notify while Org is IN MIDDLE OF notifying affected
     PDPCCanSayNotToNotifyEvenAfterOrgHasNotifiedAffected: {
