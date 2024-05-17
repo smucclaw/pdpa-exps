@@ -1,9 +1,9 @@
-This repo contains a Forge specification of the PDPA 'race condition'.
+This repo contains a Forge specification of the PDPA 'race condition'. 
 
 ## What is Forge?
 Let's begin with the most obvious question you might have: What is Forge?
 
-The short answer is that it's an Alloy-like language that's geared towards pedagogical purposes and rapid prototyping.
+The short answer is that it's an Alloy-like language that's geared towards pedagogical purposes and rapid prototyping. (I can't seem to change the repo description now, so just to clarify: I probably *won't* bother making an Alloy version of this too.)
 
 For a longer answer, see Tim Nelson's response:
 > Forge is designed specifically for teaching. It has features like partial instances, test blocks, and the Sterling visualizer. Alloy has some features that Forge doesn't support, like the `fact` keyword, and somewhat better library support for relations. [...] The solvers are the same.
